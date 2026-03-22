@@ -53,35 +53,43 @@ const NavDataCn = [
     'pageId': '2.3.1',
     'display': false
   },
-  {
-    'id': '2.4',
-    'name': '系统',
-    'path': '/systems',
-    'pageId': '2.4.1',
-    'display': false,
-    'children': [
-      {
-        'id': '2.4.1',
-        'name': 'MEPM 注册系统',
-        'path': '/mecm/system/mepm',
-        'pageId': '2.4.1.1',
-        'display': false
-      },
-      {
-        'id': '2.4.2',
-        'name': '应用市场注册系统',
-        'path': '/mecm/system/appstore',
-        'pageId': '2.4.1.2',
-        'display': false
-      }
-    ]
-  },
+  // {
+  //   'id': '2.4',
+  //   'name': '系统',
+  //   'path': '/systems',
+  //   'pageId': '2.4.1',
+  //   'display': false,
+  //   'children': [
+  //     {
+  //       'id': '2.4.1',
+  //       'name': 'MEPM 注册系统',
+  //       'path': '/mecm/system/mepm',
+  //       'pageId': '2.4.1.1',
+  //       'display': false
+  //     },
+  //     {
+  //       'id': '2.4.2',
+  //       'name': '应用市场注册系统',
+  //       'path': '/mecm/system/appstore',
+  //       'pageId': '2.4.1.2',
+  //       'display': false
+  //     }
+  //   ]
+  // },
   {
     'id': '2.5',
     'name': '资源管理',
     'path': '/mecm/resource/manager',
     'pageId': '2.5.1',
     'display': false
+  },
+  {
+    'id': '2.6',
+    'name': '信令管理',
+    'path': '/mecm/signaling/manager',
+    'pageId': '2.6.1',
+    'display': true,
+    'authority': ['ROLE_MECM_ADMIN']
   }
 ]
 

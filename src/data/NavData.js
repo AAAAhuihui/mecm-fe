@@ -53,35 +53,43 @@ const NavData = [
     'pageId': '2.3.1',
     'display': false
   },
-  {
-    'id': '2.4',
-    'name': 'Systems',
-    'path': '/systems',
-    'pageId': '2.4.1',
-    'display': false,
-    'children': [
-      {
-        'id': '2.4.1',
-        'name': 'MEPM',
-        'path': '/mecm/system/mepm',
-        'pageId': '2.4.1.1',
-        'display': false
-      },
-      {
-        'id': '2.4.2',
-        'name': 'App Store',
-        'path': '/mecm/system/appstore',
-        'pageId': '2.4.1.2',
-        'display': false
-      }
-    ]
-  },
+  // {
+  //   'id': '2.4',
+  //   'name': 'Systems',
+  //   'path': '/systems',
+  //   'pageId': '2.4.1',
+  //   'display': false,
+  //   'children': [
+  //     {
+  //       'id': '2.4.1',
+  //       'name': 'MEPM',
+  //       'path': '/mecm/system/mepm',
+  //       'pageId': '2.4.1.1',
+  //       'display': false
+  //     },
+  //     {
+  //       'id': '2.4.2',
+  //       'name': 'App Store',
+  //       'path': '/mecm/system/appstore',
+  //       'pageId': '2.4.1.2',
+  //       'display': false
+  //     }
+  //   ]
+  // },
   {
     'id': '2.5',
     'name': 'Resource Management',
     'path': '/mecm/resource/manager',
     'pageId': '2.5.1',
     'display': false
+  },
+  {
+    'id': '2.6',
+    'name': 'signaling manager',
+    'path': '/mecm/signaling/manager',
+    'pageId': '2.6.1',
+    'display': true,
+    'authority': ['ROLE_MECM_ADMIN']
   }
 ]
 

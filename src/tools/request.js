@@ -26,6 +26,7 @@ const PROXY_PREFIX_HEALTHCHECK = '/edgegallery/healthcheck'
 let inventoryApi = PROXY_PREFIX_CURRENTSERVER + '/mecm-inventory/inventory/v1'
 let apmApi = PROXY_PREFIX_CURRENTSERVER + '/mecm-apm/apm/v1'
 let appoApi = PROXY_PREFIX_CURRENTSERVER + '/mecm-appo/appo/v1'
+let appInstanceApi = inventoryApi
 
 let inventoryUrl = ['/applcms', '/mechosts', '/appstores', '/apprulemanagers', '/mepms']
 
@@ -329,6 +330,10 @@ let inventory = {
   },
   syncMechost (ip) {
     return GET(inventoryApi + '/mepms/' + ip + '/mechost/sync')
+  },
+  // [新增] 2026-01-05 获取MEC主机详情（包含网络平面信息）
+  getMecHostRecord (hostIp) {
+    return GET(inventoryApi + '/tenants/' + getUserId() + '/mechosts/' + hostIp)
   }
 }
 
@@ -347,6 +352,26 @@ let check = {
   }
 }
 
+let signaling = {
+  createPolicy (params) {
+    return POST(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/policies', params)
+  },
+
+  getAllSignaling (params) {
+    return GET(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/show', params)
+  },
+
+  cancelSignaling (id) {
+    return DELETE(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/delete', { id: id })
+  }
+}
+
+let appInstance = {
+  getAllAppinstanceIds () {
+    return GET(appInstanceApi + '/mecapplication/all-appinstance-ids-with-n6ip')
+  }
+}
+
 export {
   GET,
   POST,
@@ -357,5 +382,7 @@ export {
   appo,
   inventory,
   check,
+  signaling,
+  appInstance,
   PROXY_PREFIX_CURRENTSERVER
 }

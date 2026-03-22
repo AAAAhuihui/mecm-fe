@@ -50,6 +50,7 @@
               prop="mechostName"
               sortable
               :label="$t('app.packageList.name')"
+              width="100"
             >
               <template slot-scope="scope">
                 <em
@@ -62,22 +63,26 @@
             <el-table-column
               prop="mechostIp"
               :label="$t('app.packageList.ip')"
+              width="130"
             />
             <el-table-column
               prop="city"
               :label="$t('system.edgeNodes.location')"
-              width="200"
+              width="170"
             />
             <el-table-column
               prop="vim"
               label="VIM"
+              width="100"
             />
             <el-table-column
               prop="mepmIp"
               :label="$t('system.edgeNodes.mepmIp')"
+              width="150"
             />
             <el-table-column
               :label="$t('system.edgeNodes.hwCapability')"
+              width="100"
             >
               <template slot-scope="scope">
                 <span
@@ -88,9 +93,39 @@
                 </span>
               </template>
             </el-table-column>
+            <!-- [新增] 2025-12-31 新增网络能力列 -->
+            <!-- [修改] 2025-12-31 根据 network_planes 字段显示不同标签 -->
+            <!-- 展示逻辑：
+              - 若 network_planes 包含有效值（如 n6-net-1），显示绿色标签 "5G高性能直通"
+              - 若字段为空，显示灰色标签 "标准 Overlay"
+            -->
+            <el-table-column
+              :label="$t('system.edgeNodes.networkCapability')"
+              width="200"
+            >
+              <template slot-scope="scope">
+                <!-- 有效的 network_planes 值，显示绿色标签 -->
+                <el-tag
+                  v-if="hasValidNetworkPlanes(scope.row.networkPlanes)"
+                  type="success"
+                  size="small"
+                >
+                  {{ $t('system.edgeNodes.network5GHighPerf') }}
+                </el-tag>
+                <!-- 字段为空，显示灰色标签 -->
+                <el-tag
+                  v-else
+                  type="info"
+                  size="small"
+                >
+                  {{ $t('system.edgeNodes.networkStandardOverlay') }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column
               prop="configUploadStatus"
               :label="$t('system.edgeNodes.ifUploaded')"
+              width="130"
             >
               <template slot-scope="scope">
                 <span
@@ -224,6 +259,16 @@ export default {
     this.getNodeListInPage()
   },
   methods: {
+    /**
+     * 判断是否有有效的网络平面配置
+     * @param {Object} networkPlanes - 网络平面对象，格式如 {"eth1": "n6-net-1"}
+     * @returns {Boolean} 是否有有效配置
+     */
+    hasValidNetworkPlanes (networkPlanes) {
+      return networkPlanes &&
+             typeof networkPlanes === 'object' &&
+             Object.keys(networkPlanes).length > 0
+    },
     getNodeListInPage () {
       inventory.getList(2).then(response => {
         this.tableData = this.paginationData = response.data

@@ -125,7 +125,12 @@ const cn = {
       podSel: 'Pod选择器',
       deploymentConf: '部署配置',
       multipleDeploy: '批量部署',
-      deleteError: '请先删除分发状态为“Error”的应用'
+      deleteError: '请先删除分发状态为“Error”的应用',
+      // [新增] 2026-01-05 网络平面选择相关文案
+      networkPlane: '网络平面',
+      selectNetworkPlane: '请选择网络平面',
+      networkPlaneDefault: '[默认] K8s集群管理网络',
+      networkPlanePhysical: '物理直通平面'
     },
     instanceList: {
       operationStatus: '运行状态',
@@ -240,6 +245,11 @@ const cn = {
       uploadFile: '上传配置文件',
       howToUpload: '拖拽文件到上传区域内，或者点击上传',
       hwCapability: '硬件能力',
+      /* [新增] 2025-12-31 添加网络能力列 */
+      networkCapability: '网络能力',
+      /* [新增] 2025-12-31 网络能力标签文本 */
+      network5GHighPerf: '5G高性能直通',
+      networkStandardOverlay: '标准 Overlay',
       coordinates: '坐标',
       chooseLocation: '选择部署位置',
       vim: '虚拟机',

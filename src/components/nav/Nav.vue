@@ -27,11 +27,7 @@
           class="logo"
           @click="jumpLogoTo"
         >
-          <img
-            class="cp"
-            src="../../assets/images/logo.png"
-            alt=""
-          >
+          <span class="brand-text">MEC</span>
         </div>
       </el-col>
       <el-col
@@ -345,13 +341,25 @@ export default {
     height:64px;
     width:430px;
     line-height: 65px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
     img{
       position: relative;
       top: 13px;
       width: 147px;
       height: 40px;
+      display: none;
     }
-    span{
+    .brand-text{
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #ffffff;
+      line-height: 1;
+      user-select: none;
+    }
+    .logo-text{
       position: relative;
       top:-28px;
       font-size: 16px;
@@ -359,7 +367,7 @@ export default {
       left:20px;
       cursor:pointer;
     }
-    span.blue{
+    .logo-text.blue{
       color:#409EFF;
     }
   }

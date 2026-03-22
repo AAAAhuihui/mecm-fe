@@ -126,7 +126,12 @@ const en = {
       podSel: 'Pod Selector',
       deploymentConf: 'Deployment Configuration',
       multipleDeploy: 'Batch Deployment',
-      deleteError: 'Please delete the error status applications'
+      deleteError: 'Please delete the error status applications',
+      // [新增] 2026-01-05 Network plane selection related
+      networkPlane: 'Network Plane',
+      selectNetworkPlane: 'Please select network plane',
+      networkPlaneDefault: '[Default] K8s Cluster Network',
+      networkPlanePhysical: 'Physical Direct Plane'
     },
     instanceList: {
       operationStatus: 'Operational Status',
@@ -242,6 +247,11 @@ const en = {
       uploadFile: 'Upload Config File',
       howToUpload: 'Drag the file here，or click to upload',
       hwCapability: 'Capabilities',
+      /* [新增] 2025-12-31 添加网络能力列 */
+      networkCapability: 'Network Capability',
+      /* [新增] 2025-12-31 网络能力标签文本 */
+      network5GHighPerf: '5G High-Perf Direct',
+      networkStandardOverlay: 'Standard Overlay',
       coordinates: 'Coordinates',
       chooseLocation: 'Please select location',
       vim: 'VIM',
