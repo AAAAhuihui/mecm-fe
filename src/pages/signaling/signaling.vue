@@ -84,6 +84,18 @@
                 class="signaling-input"
               />
             </div>
+            <div
+              class="select-item"
+              v-if="form.ueType === 'all'"
+            >
+              <label>网段输入</label>
+              <el-input
+                v-model="form.networkSegment"
+                placeholder="请输入网段，例如：10.60.0.0/16"
+                clearable
+                class="signaling-input"
+              />
+            </div>
           </div>
 
           <!-- 第二行：APPID -->
@@ -98,10 +110,10 @@
                 class="signaling-select"
               >
                 <el-option
-                  v-for="appId in appIdList"
-                  :key="appId"
-                  :label="appId"
-                  :value="appId"
+                  v-for="app in appList"
+                  :key="app.appInstanceId"
+                  :label="`${app.appInstanceId} ${app.appName ? `[${app.appName}]` : ''}`"
+                  :value="app.appInstanceId"
                 />
               </el-select>
             </div>
@@ -193,10 +205,13 @@
           </el-table-column>
 
           <el-table-column
-            prop="appInstanceId"
             label="APP实例ID"
             min-width="200"
-          />
+          >
+            <template slot-scope="{ row }">
+              <span>{{ row.appInstanceId }} {{ row.appName ? `[${row.appName}]` : '' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="targetIp"
             label="目标IP(N6IP)"
@@ -252,9 +267,22 @@
                 icon="el-icon-close"
                 v-if="row.status === 'SUCCESS'"
                 @click="handleCancel(row.id)"
+                :loading="cancelLoading"
                 class="cancel-btn"
+                :disabled="cancelLoading"
               >
                 取消
+              </el-button>
+              <el-button
+                type="text"
+                icon="el-icon-delete"
+                v-if="row.status === 'FAILED'"
+                @click="handleDelete(row.id)"
+                :loading="deleteLoading"
+                class="delete-btn"
+                :disabled="deleteLoading"
+              >
+                删除
               </el-button>
             </template>
           </el-table-column>
@@ -273,10 +301,10 @@ export default {
   data () {
     return {
       showDialog: false,
-      // 表单全量字段（已删除QoS相关）
       form: {
         ueType: '',
         ueIp: '',
+        networkSegment: '',
         dnn: '',
         sst: '',
         sd: '',
@@ -285,8 +313,9 @@ export default {
       },
       loading: false,
       showLoading: false,
-      appIdList: [],
-      appIdToN6IpMap: {},
+      cancelLoading: false,
+      deleteLoading: false,
+      appList: [],
       signalingList: [],
       emptyText: '暂无信令数据'
     }
@@ -296,37 +325,40 @@ export default {
     this.refreshSignalingList()
   },
   methods: {
-    // 加载APPID列表
+    // ✅【最终修复】加载APPID列表，解决“暂无APPID数据”问题
     async loadAppInstanceIdsWithN6Ip () {
       try {
         const res = await getAllAppinstanceIdsWithN6Ip()
-        if (res.code === 200 && Array.isArray(res.data)) {
-          this.appIdList = res.data.map(item => item.appInstanceId)
-          this.appIdToN6IpMap = res.data.reduce((map, item) => {
-            map[item.appInstanceId] = item.n6Ip
-            return map
-          }, {})
+        console.log('✅ 接口完整返回:', res)
+
+        // 兼容 axios 包装层
+        const responseData = res.data || res
+
+        if (responseData.code === 200 && Array.isArray(responseData.data)) {
+          this.appList = responseData.data
+          console.log('✅ APPID渲染成功:', this.appList)
         } else {
-          this.$message.error('加载APPID列表失败')
+          this.$message.warning('暂无APPID数据')
+          this.appList = []
         }
       } catch (error) {
-        this.$message.error('加载APPID列表失败')
-        console.error('APPID接口错误：', error)
+        this.$message.error('加载APPID失败')
+        console.error('❌ 接口错误:', error)
       }
     },
 
-    // 信令下发：已删除QoS相关参数
+    // 信令下发
     async handleDeploy () {
       try {
         this.loading = true
-        const targetIp = this.appIdToN6IpMap[this.form.appId]
+        const app = this.appList.find(item => item.appInstanceId === this.form.appId)
+        const targetIp = app ? app.n6Ip : ''
         if (!targetIp) {
           this.$message.warning('该APPID未关联N6IP！')
           this.loading = false
           return
         }
 
-        // 表格临时数据：删除QoS字段
         const tempItem = {
           id: Date.now(),
           appInstanceId: this.form.appId,
@@ -342,13 +374,13 @@ export default {
         }
         this.signalingList.push(tempItem)
 
-        // 向后端传递参数：删除QoS相关
         const params = {
           appId: this.form.appId,
           dnai: this.form.dnaiCode,
           targetIp: targetIp,
           ueType: this.form.ueType,
           ueIp: this.form.ueIp || '',
+          networkSegment: this.form.networkSegment || '',
           dnn: this.form.dnn,
           sst: this.form.sst,
           sd: this.form.sd
@@ -363,24 +395,29 @@ export default {
           this.refreshSignalingList()
         } else {
           tempItem.status = 'FAILED'
-          this.$message.error(res.data.msg)
+          if (res.data && res.data.msg) {
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('下发失败')
+          }
         }
       } catch (error) {
         if (this.signalingList.length > 0) {
           this.signalingList[this.signalingList.length - 1].status = 'FAILED'
         }
         this.$message.error('信令下发失败')
-        console.error('下发接口错误：', error)
+        console.error(error)
       } finally {
         this.loading = false
       }
     },
 
-    // 重置表单：清空所有字段
+    // 重置表单
     resetForm () {
       this.form = {
         ueType: '',
         ueIp: '',
+        networkSegment: '',
         dnn: '',
         sst: '',
         sd: '',
@@ -402,21 +439,18 @@ export default {
             data = res.data.data
           } else if (Array.isArray(res.data)) {
             data = res.data
-          } else if (res.data.data && Array.isArray(res.data.data.records)) {
-            data = res.data.data.records
           }
         }
         this.signalingList = data
         this.emptyText = data.length ? '' : '暂无信令数据'
       } catch (error) {
-        this.emptyText = '加载数据失败'
-        console.error('信令接口请求失败：', error)
+        this.emptyText = '加载失败'
       } finally {
         this.showLoading = false
       }
     },
 
-    // 新增：取消信令方法
+    // 取消信令
     async handleCancel (id) {
       try {
         await this.$confirm('确定要取消该信令吗？', '提示', {
@@ -424,26 +458,61 @@ export default {
           cancelButtonText: '取消',
           type: 'warning'
         })
-        // 调用后端取消接口，根据实际接口名修改
+        this.cancelLoading = true
         const res = await signaling.cancelSignaling(id)
         if (res.data && res.data.code === 200) {
           this.$message.success('信令取消成功！')
           this.refreshSignalingList()
         } else {
-          this.$message.error(res.data.msg || '信令取消失败')
+          if (res.data && res.data.msg) {
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('信令取消失败')
+          }
         }
       } catch (error) {
         if (error !== 'cancel') {
           this.$message.error('取消请求失败，请重试')
           console.error('取消接口错误：', error)
         }
+      } finally {
+        this.cancelLoading = false
       }
     },
 
-    // 格式化函数（已删除QoS格式化）
+    // 删除失败信令
+    async handleDelete (id) {
+      try {
+        await this.$confirm('确定要删除该失败信令吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        this.deleteLoading = true
+        const res = await signaling.deleteFailedSignaling(id)
+        if (res.data && res.data.code === 200) {
+          this.$message.success('信令删除成功！')
+          this.refreshSignalingList()
+        } else {
+          if (res.data && res.data.msg) {
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('信令删除失败')
+          }
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除请求失败，请重试')
+          console.error('删除接口错误：', error)
+        }
+      } finally {
+        this.deleteLoading = false
+      }
+    },
+
     formatStatus (row) {
       const map = { SUCCESS: '成功', FAILED: '失败', PENDING: '处理中', DEPLOYING: '下发中' }
-      return map[row.status] || row.status || '未知'
+      return map[row.status] || '未知'
     },
     getStatusIcon (status) {
       const iconMap = { DEPLOYING: 'el-icon-loading', SUCCESS: 'el-icon-success', FAILED: 'el-icon-error', PENDING: 'el-icon-time' }
@@ -458,14 +527,11 @@ export default {
 </script>
 
 <style lang='less' scoped>
-    /* 完全对齐新样式的紫色科技风 */
-
     .contentList {
         padding: 20px;
         box-sizing: border-box;
     }
 
-    /* 顶部操作栏样式 */
     .select-container {
         display: flex;
         flex-wrap: wrap;
@@ -474,18 +540,15 @@ export default {
         padding: 20px;
         background: rgba(62, 39, 155, 0.5);
         border-radius: 16px;
-        box-sizing: border-box;
         margin-bottom: 20px;
     }
 
-    /* 表单项样式 */
     .select-item {
         display: flex;
         flex-direction: column;
         gap: 8px;
         flex: 1;
         label
-
     {
         font-size: 15px;
         color: rgba(255, 255, 255, 0.9);
@@ -493,7 +556,6 @@ export default {
 
     }
 
-    /* 表单行布局：每行独占一行，子项均分宽度 */
     .form-row {
         display: flex;
         gap: 20px;
@@ -501,182 +563,85 @@ export default {
         width: 100%;
     }
 
-    /* 弹窗自定义样式：标题白色 */
-    :deep(.signaling-dialog) {
-        .el-dialog__title
-
-    {
+    :deep(.signaling-dialog .el-dialog__title) {
         color: #fff !important;
     }
 
-    }
-
-    /* 下拉选择框样式：白色背景 */
-    .signaling-select {
-        width: 100%;
-        /deep/ .el-select
-
-    {
-        .el-input__inner
-
-    {
-        height: 38px;
-        background: #fff; /* 改为白色背景 */
-        border: 1px solid #5e40c8;
-        border-radius: 8px;
-        color: #000; /* 文字黑色 */
-        &::placeholder
-
-    {
-        color: #999; /* 占位符灰色 */
-    }
-
-    }
-
-    .el-input__suffix i {
-        color: #3E279B;
-    }
-
-    }
-    }
-
-    /* 输入框样式：白色背景 */
+    .signaling-select,
     .signaling-input {
         width: 100%;
-        /deep/ .el-input
-
-    {
-        .el-input__inner
-
+        /deep/ .el-input__inner
     {
         height: 38px;
-        background: #fff; /* 改为白色背景 */
+        background: #fff;
         border: 1px solid #5e40c8;
         border-radius: 8px;
-        color: #000; /* 文字黑色 */
-        &::placeholder
-
-    {
-        color: #999; /* 占位符灰色 */
+        color: #000;
     }
 
     }
-    }
-    }
 
-    /* 表单布局 */
     .form-content {
         display: flex;
-        flex-direction: column; /* 垂直排列每行 */
+        flex-direction: column;
         gap: 16px;
         padding: 10px 0;
     }
 
-    /* 弹窗底部 */
     .dialog-footer {
         text-align: right;
     }
 
-    /* 主按钮：紫色主题 */
     .deploy-btn {
         height: 38px;
         padding: 0 30px;
         background: #3E279B;
         border-color: #5e40c8;
         border-radius: 8px;
-        font-size: 16px;
         &:hover
-
     {
         background: #5e40c8;
-        border-color: #7a60d0;
-    }
-
-    &:disabled {
-        background: rgba(62, 39, 155, 0.5);
-        border-color: rgba(94, 64, 200, 0.5);
-        color: rgba(255, 255, 255, 0.5);
     }
 
     }
 
-    /* 次按钮：青蓝色主题 */
     .show-btn {
         height: 38px;
         padding: 0 30px;
         background: #27899B;
         border-color: #40A0C8;
         border-radius: 8px;
-        font-size: 16px;
         &:hover
-
     {
         background: #40A0C8;
-        border-color: #60B0D0;
     }
 
     }
 
-    /* 表格容器：整体白色背景 + 灰色线条分隔 + 固定8行高度滚动 */
     .table-container {
-        background: #ffffff;
+        background: #fff;
         border-radius: 16px;
         padding: 20px;
     }
 
     /deep/ .el-table {
-        background: #fff;
         --el-table-border-color: #e5e7eb;
-        /* 固定高度：正好显示8条数据 + 表头，超出垂直滚动 */
         max-height: 400px;
         overflow-y: auto;
     }
 
-        /deep/ .el-table th,
-        /deep/ .el-table th > .cell {
+        /deep/ .el-table th {
             background: #f5f7fa !important;
-            color: #000000 !important;
-            border-color: #e5e7eb !important;
-            font-weight: 500;
-            /* 表头固定，不随滚动 */
-            position: sticky;
-            top: 0;
-            z-index: 1;
         }
 
-        /deep/ .el-table td {
-            background: #fff !important;
-            color: #000 !important;
-            border-color: #e5e7eb !important;
-        }
-
-    /deep/ .el-table__empty-text {
-        color: #666 !important;
-    }
-
-    /deep/ .el-loading-mask {
-        background: rgba(255,255,255,0.8);
-    }
-
-    /* 状态样式 */
     .status-text {
         display: inline-flex;
         align-items: center;
         gap: 4px;
     }
 
-    .status-icon {
-        font-size: 14px;
-    }
-
     .status-DEPLOYING {
         color: #409EFF;
-        .status-icon
-
-    {
-        animation: rotate 1.5s linear infinite;
-    }
-
     }
 
     .status-SUCCESS {
@@ -691,24 +656,7 @@ export default {
         color: #E6A23C;
     }
 
-    @keyframes rotate {
-        from {
-            transform: rotate(0deg);
-        }
-
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* 新增：取消按钮样式 */
     .cancel-btn {
         color: #F56C6C;
-        font-size: 14px;
-        &:hover
-
-    {
-        color: #f78989;
-    }
     }
 </style>

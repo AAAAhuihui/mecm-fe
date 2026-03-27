@@ -16,7 +16,14 @@
 
 module.exports = {
   devServer: {
+    proxy: {
 
+      '/apprulemgr': {
+        target: 'http://localhost:8096',
+        changeOrigin: true,
+        pathRewrite: {}
+      }
+    }
   },
   publicPath: process.env.NODE_ENV === 'production' ? './' : '/',
 

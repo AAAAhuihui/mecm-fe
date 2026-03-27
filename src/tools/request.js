@@ -331,7 +331,7 @@ let inventory = {
   syncMechost (ip) {
     return GET(inventoryApi + '/mepms/' + ip + '/mechost/sync')
   },
-  // [新增] 2026-01-05 获取MEC主机详情（包含网络平面信息）
+
   getMecHostRecord (hostIp) {
     return GET(inventoryApi + '/tenants/' + getUserId() + '/mechosts/' + hostIp)
   }
@@ -354,15 +354,19 @@ let check = {
 
 let signaling = {
   createPolicy (params) {
-    return POST(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/policies', params)
+    return POST(inventoryApi + '/signaling/policies', params)
   },
 
   getAllSignaling (params) {
-    return GET(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/show', params)
+    return GET(inventoryApi + '/signaling/show', params)
   },
 
   cancelSignaling (id) {
-    return DELETE(PROXY_PREFIX_CURRENTSERVER + '/apprulemgr/v1/signaling/delete', { id: id })
+    return DELETE(inventoryApi + '/signaling/delete', { id: id })
+  },
+
+  deleteFailedSignaling (id) {
+    return DELETE(inventoryApi + '/signaling/delete-failed', { id: id })
   }
 }
 
