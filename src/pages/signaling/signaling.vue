@@ -44,7 +44,11 @@
 
       <!-- 信令下发弹窗：添加自定义类名修改标题样式 -->
       <el-dialog
+<<<<<<< HEAD
         :title="''"
+=======
+        title="信令下发"
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         :visible.sync="showDialog"
         width="800px"
         @close="resetForm"
@@ -108,7 +112,11 @@
           <!-- 第二行：APPID -->
           <div class="form-row">
             <div class="select-item">
+<<<<<<< HEAD
               <label>应用名称及其ID</label>
+=======
+              <label>边缘节点APPID</label>
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
               <el-select
                 v-model="form.appId"
                 placeholder="请选择应用及其APPID"
@@ -119,7 +127,11 @@
                 <el-option
                   v-for="app in appList"
                   :key="app.appInstanceId"
+<<<<<<< HEAD
                   :label="`${app.appName ? app.appName : app.appInstanceId} ${app.appName ? `[${app.appInstanceId}]` : ''}`"
+=======
+                  :label="`${app.appInstanceId} ${app.appName ? `[${app.appName}]` : ''}`"
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
                   :value="app.appInstanceId"
                 />
               </el-select>
@@ -192,6 +204,7 @@
         </span>
       </el-dialog>
 
+<<<<<<< HEAD
       <!-- 信令查看弹窗 -->
       <el-dialog
         :title="''"
@@ -437,6 +450,61 @@
             >
               <span
                 v-if="row.status"
+=======
+      <!-- 信令数据表格 -->
+      <div class="table-container">
+        <el-table
+          :data="signalingList"
+          border
+          v-loading="showLoading"
+          :empty-text="emptyText"
+          style="width: 100%"
+        >
+          <!-- ID列：下发中不显示 -->
+          <el-table-column
+            label="ID"
+            width="120"
+          >
+            <template slot-scope="{ row }">
+              <span>{{ row.status === 'DEPLOYING' ? '' : row.id }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            label="APP实例ID"
+            min-width="200"
+          >
+            <template slot-scope="{ row }">
+              <span>{{ row.appInstanceId }} {{ row.appName ? `[${row.appName}]` : '' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="targetIp"
+            label="目标IP(N6IP)"
+            width="160"
+          />
+          <el-table-column
+            prop="targetDnai"
+            label="DNAI编码"
+            min-width="180"
+          />
+          <el-table-column
+            label="UE信息"
+            min-width="180"
+          >
+            <template slot-scope="{ row }">
+              <span>{{ row.ueType === 'all' ? '全部UE' : (row.ueType === 'single' ? `单独UE: ${row.ueIp}` : '-') }}</span>
+            </template>
+          </el-table-column>
+          <!-- 状态列 -->
+          <el-table-column
+            prop="status"
+            label="状态"
+            width="140"
+          >
+            <template slot-scope="{ row }">
+              <span
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
                 class="status-text"
                 :class="`status-${row.status}`"
               >
@@ -446,6 +514,7 @@
                 />
                 {{ formatStatus(row) }}
               </span>
+<<<<<<< HEAD
             </div>
             <div
               class="item-content"
@@ -463,10 +532,36 @@
                 icon="el-icon-view"
                 @click="handleView(row)"
                 class="view-btn"
+=======
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="createTime"
+            label="创建时间"
+            width="200"
+            :formatter="formatDateTime"
+          />
+          <!-- 新增：操作列 - 取消按钮 -->
+          <el-table-column
+            label="操作"
+            width="120"
+            align="center"
+          >
+            <template slot-scope="{ row }">
+              <el-button
+                type="text"
+                icon="el-icon-close"
+                v-if="row.status === 'SUCCESS'"
+                @click="handleCancel(row.id)"
+                :loading="cancelLoading"
+                class="cancel-btn"
+                :disabled="cancelLoading"
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
               >
                 查看
               </el-button>
               <el-button
+<<<<<<< HEAD
                 v-if="row.id && row.status === 'SUCCESS'"
                 type="text"
                 icon="el-icon-delete"
@@ -482,12 +577,19 @@
                 type="text"
                 icon="el-icon-delete"
                 @click="handleDeleteFailed(row.id)"
+=======
+                type="text"
+                icon="el-icon-delete"
+                v-if="row.status === 'FAILED'"
+                @click="handleDelete(row.id)"
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
                 :loading="deleteLoading"
                 class="delete-btn"
                 :disabled="deleteLoading"
               >
                 删除
               </el-button>
+<<<<<<< HEAD
             </div>
           </div>
         </div>
@@ -504,6 +606,11 @@
             :total="total"
           />
         </div>
+=======
+            </template>
+          </el-table-column>
+        </el-table>
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       </div>
     </div>
   </div>
@@ -532,8 +639,11 @@ export default {
       showLoading: false,
       cancelLoading: false,
       deleteLoading: false,
+<<<<<<< HEAD
       showViewDialog: false,
       currentSignaling: {},
+=======
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       appList: [],
       signalingList: [],
       paginatedSignalingList: [],
@@ -560,6 +670,7 @@ export default {
         const responseData = res.data || res
 
         if (responseData.code === 200 && Array.isArray(responseData.data)) {
+<<<<<<< HEAD
           that.appList = responseData.data
           console.log('✅ APPID渲染成功:', that.appList)
         } else {
@@ -568,6 +679,16 @@ export default {
         }
       } catch (error) {
         that.$message.error('加载APPID失败')
+=======
+          this.appList = responseData.data
+          console.log('✅ APPID渲染成功:', this.appList)
+        } else {
+          this.$message.warning('暂无APPID数据')
+          this.appList = []
+        }
+      } catch (error) {
+        this.$message.error('加载APPID失败')
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         console.error('❌ 接口错误:', error)
       }
     },
@@ -576,8 +697,13 @@ export default {
     async handleDeploy () {
       const that = this
       try {
+<<<<<<< HEAD
         that.loading = true
         const app = that.appList.find(item => item.appInstanceId === that.form.appId)
+=======
+        this.loading = true
+        const app = this.appList.find(item => item.appInstanceId === this.form.appId)
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         const targetIp = app ? app.n6Ip : ''
         if (!targetIp) {
           that.$message.warning('该APPID未关联N6IP！')
@@ -585,16 +711,43 @@ export default {
           return
         }
 
+<<<<<<< HEAD
+=======
+        const tempItem = {
+          id: Date.now(),
+          appInstanceId: this.form.appId,
+          targetIp: targetIp,
+          targetDnai: this.form.dnaiCode,
+          dnn: this.form.dnn,
+          sst: this.form.sst,
+          sd: this.form.sd,
+          ueType: this.form.ueType,
+          ueIp: this.form.ueIp || '',
+          status: 'DEPLOYING',
+          createTime: new Date().toISOString()
+        }
+        this.signalingList.push(tempItem)
+
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         const params = {
           appId: that.form.appId,
           dnai: that.form.dnaiCode,
           targetIp: targetIp,
+<<<<<<< HEAD
           ueType: that.form.ueType,
           ueIp: that.form.ueIp || '',
           networkSegment: that.form.networkSegment || '',
           dnn: that.form.dnn,
           sst: that.form.sst,
           sd: that.form.sd
+=======
+          ueType: this.form.ueType,
+          ueIp: this.form.ueIp || '',
+          networkSegment: this.form.networkSegment || '',
+          dnn: this.form.dnn,
+          sst: this.form.sst,
+          sd: this.form.sd
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         }
         const res = await signaling.createPolicy(params)
 
@@ -604,6 +757,7 @@ export default {
           that.resetForm()
           that.refreshSignalingList()
         } else {
+<<<<<<< HEAD
           if (res.data && res.data.msg) {
             that.$message.error(res.data.msg)
           } else {
@@ -615,6 +769,21 @@ export default {
         that.$message.error('信令下发失败')
         console.error(error)
         that.refreshSignalingList()
+=======
+          tempItem.status = 'FAILED'
+          if (res.data && res.data.msg) {
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('下发失败')
+          }
+        }
+      } catch (error) {
+        if (this.signalingList.length > 0) {
+          this.signalingList[this.signalingList.length - 1].status = 'FAILED'
+        }
+        this.$message.error('信令下发失败')
+        console.error(error)
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       } finally {
         that.loading = false
       }
@@ -652,7 +821,10 @@ export default {
             that.total = res.data.total || 0
           } else if (Array.isArray(res.data)) {
             data = res.data
+<<<<<<< HEAD
             that.total = data.length
+=======
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
           }
         }
 
@@ -663,12 +835,17 @@ export default {
         that.paginatedSignalingList = data
         that.emptyText = data.length && data[0].id ? '' : '暂无信令数据'
       } catch (error) {
+<<<<<<< HEAD
         that.emptyText = '加载失败'
+=======
+        this.emptyText = '加载失败'
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       } finally {
         that.showLoading = false
       }
     },
 
+<<<<<<< HEAD
     // 页码变化
     handleCurrentChange (current) {
       this.currentPage = current
@@ -687,13 +864,21 @@ export default {
     // 删除信令
     async handleDelete (id) {
       const that = this
+=======
+    // 取消信令
+    async handleCancel (id) {
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       try {
         await that.$confirm('确定要删除该信令吗？', '提示', {
           confirmButtonText: '确定',
           cancelButtonText: '取消',
           type: 'warning'
         })
+<<<<<<< HEAD
         that.cancelLoading = true
+=======
+        this.cancelLoading = true
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
         const res = await signaling.cancelSignaling(id)
         if (res.data && res.data.code === 200) {
           that.$message.success('信令删除成功！')
@@ -705,9 +890,15 @@ export default {
           that.refreshSignalingList()
         } else {
           if (res.data && res.data.msg) {
+<<<<<<< HEAD
             that.$message.error(res.data.msg)
           } else {
             that.$message.error('信令删除失败')
+=======
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('信令取消失败')
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
           }
         }
       } catch (error) {
@@ -716,6 +907,7 @@ export default {
           console.error('删除接口错误：', error)
         }
       } finally {
+<<<<<<< HEAD
         that.cancelLoading = false
       }
     },
@@ -746,10 +938,21 @@ export default {
       const that = this
       try {
         await that.$confirm('确定要删除该失败信令吗？', '提示', {
+=======
+        this.cancelLoading = false
+      }
+    },
+
+    // 删除失败信令
+    async handleDelete (id) {
+      try {
+        await this.$confirm('确定要删除该失败信令吗？', '提示', {
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
           confirmButtonText: '确定',
           cancelButtonText: '取消',
           type: 'warning'
         })
+<<<<<<< HEAD
         that.deleteLoading = true
         const res = await signaling.deleteFailedSignaling(id)
         if (res.data && res.data.code === 200) {
@@ -765,15 +968,35 @@ export default {
             that.$message.error(res.data.msg)
           } else {
             that.$message.error('信令删除失败')
+=======
+        this.deleteLoading = true
+        const res = await signaling.deleteFailedSignaling(id)
+        if (res.data && res.data.code === 200) {
+          this.$message.success('信令删除成功！')
+          this.refreshSignalingList()
+        } else {
+          if (res.data && res.data.msg) {
+            this.$message.error(res.data.msg)
+          } else {
+            this.$message.error('信令删除失败')
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
           }
         }
       } catch (error) {
         if (error !== 'cancel') {
+<<<<<<< HEAD
           that.$message.error('删除请求失败，请重试')
           console.error('删除接口错误：', error)
         }
       } finally {
         that.deleteLoading = false
+=======
+          this.$message.error('删除请求失败，请重试')
+          console.error('删除接口错误：', error)
+        }
+      } finally {
+        this.deleteLoading = false
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
       }
     },
 
@@ -830,6 +1053,7 @@ export default {
         width: 100%;
     }
 
+<<<<<<< HEAD
     /* 弹窗标题样式 */
     .signaling-dialog {
         .el-dialog__header {
@@ -855,6 +1079,12 @@ export default {
         padding: 0 !important;
     }
 
+=======
+    :deep(.signaling-dialog .el-dialog__title) {
+        color: #fff !important;
+    }
+
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
     .signaling-select,
     .signaling-input {
         width: 100%;
@@ -913,6 +1143,7 @@ export default {
         min-height: 490px;
     }
 
+<<<<<<< HEAD
     /* 列表样式 */
     .list-header {
         display: flex;
@@ -969,6 +1200,17 @@ export default {
         padding: 100px 0;
         color: #909399;
     }
+=======
+    /deep/ .el-table {
+        --el-table-border-color: #e5e7eb;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+        /deep/ .el-table th {
+            background: #f5f7fa !important;
+        }
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
 
     .status-text {
         display: inline-flex;
@@ -994,6 +1236,7 @@ export default {
 
     .cancel-btn {
         color: #F56C6C;
+<<<<<<< HEAD
     }
 
     .view-btn {
@@ -1006,6 +1249,8 @@ export default {
         align-items: center;
         margin-top: 20px;
         font-size: 14px;
+=======
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
     }
 
     /deep/ .el-pagination {

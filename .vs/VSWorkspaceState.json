@@ -1,7 +1,15 @@
 {
   "ExpandedNodes": [
+<<<<<<< HEAD
     ""
   ],
   "SelectedNode": "\\D:\\mecm-fenew",
+=======
+    "",
+    "\\src",
+    "\\src\\tools"
+  ],
+  "SelectedNode": "\\src\\tools\\request.js",
+>>>>>>> 2c90a03a828672f2f36af882b46ad7f177f06760
   "PreviewInSolutionExplorer": false
 }
