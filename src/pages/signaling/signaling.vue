@@ -49,8 +49,15 @@
         width="800px"
         @close="resetForm"
         append-to-body
-        custom-class="signaling-dialog"
+        custom-class="signaling-dialog deploy-dialog"
       >
+        <!-- 自定义标题 -->
+        <div
+          slot="title"
+          class="custom-dialog-title"
+        >
+          信令下发
+        </div>
         <div class="form-content">
           <!-- 第一行：UE类型 + UE IP -->
           <div class="form-row">
@@ -101,10 +108,10 @@
           <!-- 第二行：APPID -->
           <div class="form-row">
             <div class="select-item">
-              <label>边缘节点APPID</label>
+              <label>应用名称及其ID</label>
               <el-select
                 v-model="form.appId"
-                placeholder="请选择边缘节点APPID"
+                placeholder="请选择应用及其APPID"
                 clearable
                 filterable
                 class="signaling-select"
@@ -112,7 +119,7 @@
                 <el-option
                   v-for="app in appList"
                   :key="app.appInstanceId"
-                  :label="`${app.appInstanceId} ${app.appName ? `[${app.appName}]` : ''}`"
+                  :label="`${app.appName ? app.appName : app.appInstanceId} ${app.appName ? `[${app.appInstanceId}]` : ''}`"
                   :value="app.appInstanceId"
                 />
               </el-select>
@@ -166,6 +173,19 @@
               />
             </div>
           </div>
+
+          <!-- 第六行：UPF -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>UPF</label>
+              <el-input
+                v-model="form.upf"
+                placeholder="请输入UPF"
+                clearable
+                class="signaling-input"
+              />
+            </div>
+          </div>
         </div>
 
         <span
@@ -176,7 +196,7 @@
           <el-button
             type="primary"
             :loading="loading"
-            :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode"
+            :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode || !form.upf"
             @click="handleDeploy"
             class="deploy-btn"
           >
@@ -185,59 +205,264 @@
         </span>
       </el-dialog>
 
-      <!-- 信令数据表格 -->
-      <div class="table-container">
-        <el-table
-          :data="signalingList"
-          border
-          v-loading="showLoading"
-          :empty-text="emptyText"
-          style="width: 100%"
+      <!-- 信令查看弹窗 -->
+      <el-dialog
+        :title="''"
+        :visible.sync="showViewDialog"
+        width="800px"
+        append-to-body
+        :modal="false"
+        custom-class="signaling-dialog view-dialog"
+      >
+        <!-- 自定义标题 -->
+        <div
+          slot="title"
+          class="custom-dialog-title"
         >
-          <!-- ID列：下发中不显示 -->
-          <el-table-column
-            label="ID"
-            width="120"
-          >
-            <template slot-scope="{ row }">
-              <span>{{ row.status === 'DEPLOYING' ? '' : row.id }}</span>
-            </template>
-          </el-table-column>
+          信令详情
+        </div>
+        <div class="form-content">
+          <!-- 第一行：APP信息 -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>APP信息</label>
+              <el-input
+                v-model="currentSignaling.appInfo"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
 
-          <el-table-column
-            label="APP实例ID"
-            min-width="200"
+          <!-- 第二行：目标IP + DNAI编码 -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>目标IP</label>
+              <el-input
+                v-model="currentSignaling.targetIp"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+            <div class="select-item">
+              <label>DNAI编码</label>
+              <el-input
+                v-model="currentSignaling.targetDnai"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+
+          <!-- 第三行：UE信息 -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>UE信息</label>
+              <el-input
+                v-model="currentSignaling.ueInfo"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+
+          <!-- 第四行：DNN + SST + SD -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>DNN</label>
+              <el-input
+                v-model="currentSignaling.dnn"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+            <div class="select-item">
+              <label>SST</label>
+              <el-input
+                v-model="currentSignaling.sst"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+            <div class="select-item">
+              <label>SD</label>
+              <el-input
+                v-model="currentSignaling.sd"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+
+          <!-- 第五行：网段（仅当UE类型为全部UE时显示） -->
+          <div
+            class="form-row"
+            v-if="currentSignaling.ueInfo && currentSignaling.ueInfo.includes('全部UE')"
           >
-            <template slot-scope="{ row }">
-              <span>{{ row.appInstanceId }} {{ row.appName ? `[${row.appName}]` : '' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="targetIp"
-            label="目标IP(N6IP)"
-            width="160"
-          />
-          <el-table-column
-            prop="targetDnai"
-            label="DNAI编码"
-            min-width="180"
-          />
-          <el-table-column
-            label="UE信息"
-            min-width="180"
+            <div class="select-item">
+              <label>网段</label>
+              <el-input
+                v-model="currentSignaling.networkSegment"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+
+          <!-- 第六行：状态 + 创建时间 -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>状态</label>
+              <el-input
+                v-model="currentSignaling.statusText"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+            <div class="select-item">
+              <label>创建时间</label>
+              <el-input
+                v-model="currentSignaling.createTime"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+
+          <!-- 第七行：响应信息 -->
+          <div class="form-row">
+            <div
+              class="select-item"
+              style="flex: 2;"
+            >
+              <label>响应信息</label>
+              <el-input
+                v-model="currentSignaling.responseInfo"
+                type="textarea"
+                :rows="3"
+                disabled
+                class="signaling-input"
+              />
+            </div>
+          </div>
+        </div>
+
+        <span
+          slot="footer"
+          class="dialog-footer"
+        >
+          <el-button @click="showViewDialog = false">关闭</el-button>
+        </span>
+      </el-dialog>
+
+      <!-- 信令数据列表 -->
+      <div class="table-container">
+        <!-- 表头 -->
+        <div class="list-header">
+          <div
+            class="header-item"
+            style="flex: 2;"
           >
-            <template slot-scope="{ row }">
-              <span>{{ row.ueType === 'all' ? '全部UE' : (row.ueType === 'single' ? `单独UE: ${row.ueIp}` : '-') }}</span>
-            </template>
-          </el-table-column>
-          <!-- 状态列 -->
-          <el-table-column
-            prop="status"
-            label="状态"
-            width="140"
+            序号
+          </div>
+          <div
+            class="header-item"
+            style="flex: 13.5;"
           >
-            <template slot-scope="{ row }">
+            APP信息
+          </div>
+          <div
+            class="header-item"
+            style="flex: 3;"
+          >
+            DNAI
+          </div>
+          <div
+            class="header-item"
+            style="flex: 5;"
+          >
+            目标IP
+          </div>
+          <div
+            class="header-item"
+            style="flex: 5;"
+          >
+            UE信息
+          </div>
+          <div
+            class="header-item"
+            style="flex: 4;"
+          >
+            状态
+          </div>
+          <div
+            class="header-item"
+            style="flex: 5;"
+          >
+            创建时间
+          </div>
+          <div
+            class="header-item"
+            style="flex: 5;"
+          >
+            操作
+          </div>
+        </div>
+
+        <!-- 数据列表 -->
+        <div
+          v-loading="showLoading"
+          class="list-body"
+        >
+          <div
+            v-if="paginatedSignalingList.length === 0"
+            class="empty-list"
+          >
+            {{ emptyText }}
+          </div>
+          <div
+            v-else
+            v-for="(row, index) in paginatedSignalingList"
+            :key="row.id || index"
+            class="list-item"
+            :class="{ 'data-item': row.id }"
+          >
+            <div
+              class="item-content"
+              style="flex: 2;"
+            >
+              {{ row.id ? ((currentPage - 1) * pageSize + index + 1) : '' }}
+            </div>
+            <div
+              class="item-content"
+              style="flex: 13.5;"
+            >
+              <span v-if="row.appInstanceId">{{ row.appName ? row.appName : row.appInstanceId }} {{ row.appName ? `[${row.appInstanceId}]` : '' }}</span>
+            </div>
+            <div
+              class="item-content"
+              style="flex: 3;"
+            >
+              {{ row.targetDnai }}
+            </div>
+            <div
+              class="item-content"
+              style="flex: 5;"
+            >
+              {{ row.targetIp }}
+            </div>
+            <div
+              class="item-content"
+              style="flex: 5;"
+            >
+              <span v-if="row.ueType">{{ row.ueType === 'all' ? '全部UE' : (row.ueType === 'single' ? `单独UE: ${row.ueIp}` : '-') }}</span>
+            </div>
+            <div
+              class="item-content"
+              style="flex: 4;"
+            >
               <span
+                v-if="row.status"
                 class="status-text"
                 :class="`status-${row.status}`"
               >
@@ -247,46 +472,64 @@
                 />
                 {{ formatStatus(row) }}
               </span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="createTime"
-            label="创建时间"
-            width="200"
-            :formatter="formatDateTime"
-          />
-          <!-- 新增：操作列 - 取消按钮 -->
-          <el-table-column
-            label="操作"
-            width="120"
-            align="center"
-          >
-            <template slot-scope="{ row }">
+            </div>
+            <div
+              class="item-content"
+              style="flex: 5;"
+            >
+              {{ formatDateTime(row) }}
+            </div>
+            <div
+              class="item-content"
+              style="flex: 5;"
+            >
               <el-button
+                v-if="row.id"
                 type="text"
-                icon="el-icon-close"
-                v-if="row.status === 'SUCCESS'"
-                @click="handleCancel(row.id)"
-                :loading="cancelLoading"
-                class="cancel-btn"
-                :disabled="cancelLoading"
+                icon="el-icon-view"
+                @click="handleView(row)"
+                class="view-btn"
               >
-                取消
+                查看
               </el-button>
               <el-button
+                v-if="row.id && row.status === 'SUCCESS'"
                 type="text"
                 icon="el-icon-delete"
-                v-if="row.status === 'FAILED'"
                 @click="handleDelete(row.id)"
+                :loading="cancelLoading"
+                class="delete-btn"
+                :disabled="cancelLoading"
+              >
+                删除
+              </el-button>
+              <el-button
+                v-if="row.id && row.status === 'FAILED'"
+                type="text"
+                icon="el-icon-delete"
+                @click="handleDeleteFailed(row.id)"
                 :loading="deleteLoading"
                 class="delete-btn"
                 :disabled="deleteLoading"
               >
                 删除
               </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页组件 -->
+        <div class="pagination-container">
+          <el-pagination
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+            :current-page="currentPage"
+            :page-sizes="[9, 15]"
+            :page-size="pageSize"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -309,24 +552,34 @@ export default {
         sst: '',
         sd: '',
         appId: '',
-        dnaiCode: ''
+        dnaiCode: '',
+        upf: ''
       },
       loading: false,
       showLoading: false,
       cancelLoading: false,
       deleteLoading: false,
+      showViewDialog: false,
+      currentSignaling: {},
       appList: [],
       signalingList: [],
+      paginatedSignalingList: [],
+      currentPage: 1,
+      pageNum: 1,
+      pageSize: 9,
+      total: 0,
       emptyText: '暂无信令数据'
     }
   },
   created () {
+    this.updateItemHeight()
     this.loadAppInstanceIdsWithN6Ip()
     this.refreshSignalingList()
   },
   methods: {
     // ✅【最终修复】加载APPID列表，解决“暂无APPID数据”问题
     async loadAppInstanceIdsWithN6Ip () {
+      const that = this
       try {
         const res = await getAllAppinstanceIdsWithN6Ip()
         console.log('✅ 接口完整返回:', res)
@@ -335,80 +588,64 @@ export default {
         const responseData = res.data || res
 
         if (responseData.code === 200 && Array.isArray(responseData.data)) {
-          this.appList = responseData.data
-          console.log('✅ APPID渲染成功:', this.appList)
+          that.appList = responseData.data
+          console.log('✅ APPID渲染成功:', that.appList)
         } else {
-          this.$message.warning('暂无APPID数据')
-          this.appList = []
+          that.$message.warning('暂无APPID数据')
+          that.appList = []
         }
       } catch (error) {
-        this.$message.error('加载APPID失败')
+        that.$message.error('加载APPID失败')
         console.error('❌ 接口错误:', error)
       }
     },
 
     // 信令下发
     async handleDeploy () {
+      const that = this
       try {
-        this.loading = true
-        const app = this.appList.find(item => item.appInstanceId === this.form.appId)
+        that.loading = true
+        const app = that.appList.find(item => item.appInstanceId === that.form.appId)
         const targetIp = app ? app.n6Ip : ''
         if (!targetIp) {
-          this.$message.warning('该APPID未关联N6IP！')
-          this.loading = false
+          that.$message.warning('该APPID未关联N6IP！')
+          that.loading = false
           return
         }
 
-        const tempItem = {
-          id: Date.now(),
-          appInstanceId: this.form.appId,
-          targetIp: targetIp,
-          targetDnai: this.form.dnaiCode,
-          dnn: this.form.dnn,
-          sst: this.form.sst,
-          sd: this.form.sd,
-          ueType: this.form.ueType,
-          ueIp: this.form.ueIp || '',
-          status: 'DEPLOYING',
-          createTime: new Date().toISOString()
-        }
-        this.signalingList.push(tempItem)
-
         const params = {
-          appId: this.form.appId,
-          dnai: this.form.dnaiCode,
+          appId: that.form.appId,
+          dnai: that.form.dnaiCode,
           targetIp: targetIp,
-          ueType: this.form.ueType,
-          ueIp: this.form.ueIp || '',
-          networkSegment: this.form.networkSegment || '',
-          dnn: this.form.dnn,
-          sst: this.form.sst,
-          sd: this.form.sd
+          ueType: that.form.ueType,
+          ueIp: that.form.ueIp || '',
+          networkSegment: that.form.networkSegment || '',
+          dnn: that.form.dnn,
+          sst: that.form.sst,
+          sd: that.form.sd,
+          upf: that.form.upf || ''
         }
         const res = await signaling.createPolicy(params)
 
         if (res.data && res.data.code === 200) {
-          tempItem.status = 'SUCCESS'
-          this.$message.success('信令下发成功！')
-          this.showDialog = false
-          this.resetForm()
-          this.refreshSignalingList()
+          that.$message.success('信令下发成功！')
+          that.showDialog = false
+          that.resetForm()
+          that.refreshSignalingList()
         } else {
-          tempItem.status = 'FAILED'
           if (res.data && res.data.msg) {
-            this.$message.error(res.data.msg)
+            that.$message.error(res.data.msg)
           } else {
-            this.$message.error('下发失败')
+            that.$message.error('下发失败')
           }
+          that.refreshSignalingList()
         }
       } catch (error) {
-        if (this.signalingList.length > 0) {
-          this.signalingList[this.signalingList.length - 1].status = 'FAILED'
-        }
-        this.$message.error('信令下发失败')
+        that.$message.error('信令下发失败')
         console.error(error)
+        that.refreshSignalingList()
       } finally {
-        this.loading = false
+        that.loading = false
       }
     },
 
@@ -422,91 +659,164 @@ export default {
         sst: '',
         sd: '',
         appId: '',
-        dnaiCode: ''
+        dnaiCode: '',
+        upf: ''
       }
     },
 
     // 刷新列表
     async refreshSignalingList () {
-      this.showLoading = true
-      this.emptyText = '加载中...'
+      const that = this
+      that.showLoading = true
+      that.emptyText = '加载中...'
       try {
-        const params = {}
+        const params = {
+          page: that.currentPage,
+          size: that.pageSize
+        }
         const res = await signaling.getAllSignaling(params)
         let data = []
         if (res && res.data) {
           if (Array.isArray(res.data.data)) {
             data = res.data.data
+            that.total = res.data.total || 0
           } else if (Array.isArray(res.data)) {
             data = res.data
+            that.total = data.length
           }
         }
-        this.signalingList = data
-        this.emptyText = data.length ? '' : '暂无信令数据'
+
+        // 只显示实际数据，不补充空对象
+        that.signalingList = data
+        that.paginatedSignalingList = data
+        that.emptyText = data.length && data[0].id ? '' : '暂无信令数据'
       } catch (error) {
-        this.emptyText = '加载失败'
+        that.emptyText = '加载失败'
       } finally {
-        this.showLoading = false
+        that.showLoading = false
       }
     },
 
-    // 取消信令
-    async handleCancel (id) {
+    // 页码变化
+    handleCurrentChange (current) {
+      this.currentPage = current
+      this.pageNum = current
+      this.refreshSignalingList()
+    },
+
+    // 每页条数变化
+    handleSizeChange (size) {
+      this.pageSize = size
+      this.currentPage = 1
+      this.pageNum = 1
+      this.updateItemHeight()
+      this.refreshSignalingList()
+    },
+
+    // 更新行高
+    updateItemHeight () {
+      let itemHeight, itemPadding
+      if (this.pageSize === 9) {
+        itemHeight = 40 // 9条 × 40px = 360px
+        itemPadding = '6px'
+      } else if (this.pageSize === 15) {
+        itemHeight = 24 // 15条 × 24px = 360px
+        itemPadding = '2px'
+      }
+      document.documentElement.style.setProperty('--item-height', `${itemHeight}px`)
+      document.documentElement.style.setProperty('--item-padding', itemPadding)
+    },
+
+    // 删除信令
+    async handleDelete (id) {
+      const that = this
       try {
-        await this.$confirm('确定要取消该信令吗？', '提示', {
+        await that.$confirm('确定要删除该信令吗？', '提示', {
           confirmButtonText: '确定',
           cancelButtonText: '取消',
           type: 'warning'
         })
-        this.cancelLoading = true
+        that.cancelLoading = true
         const res = await signaling.cancelSignaling(id)
         if (res.data && res.data.code === 200) {
-          this.$message.success('信令取消成功！')
-          this.refreshSignalingList()
+          that.$message.success('信令删除成功！')
+          // 检查当前页是否只有一条数据，如果是则跳转到上一页
+          if (that.paginatedSignalingList.length === 1 && that.currentPage > 1) {
+            that.currentPage--
+            that.pageNum--
+          }
+          that.refreshSignalingList()
         } else {
           if (res.data && res.data.msg) {
-            this.$message.error(res.data.msg)
+            that.$message.error(res.data.msg)
           } else {
-            this.$message.error('信令取消失败')
+            that.$message.error('信令删除失败')
           }
         }
       } catch (error) {
         if (error !== 'cancel') {
-          this.$message.error('取消请求失败，请重试')
-          console.error('取消接口错误：', error)
-        }
-      } finally {
-        this.cancelLoading = false
-      }
-    },
-
-    // 删除失败信令
-    async handleDelete (id) {
-      try {
-        await this.$confirm('确定要删除该失败信令吗？', '提示', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        })
-        this.deleteLoading = true
-        const res = await signaling.deleteFailedSignaling(id)
-        if (res.data && res.data.code === 200) {
-          this.$message.success('信令删除成功！')
-          this.refreshSignalingList()
-        } else {
-          if (res.data && res.data.msg) {
-            this.$message.error(res.data.msg)
-          } else {
-            this.$message.error('信令删除失败')
-          }
-        }
-      } catch (error) {
-        if (error !== 'cancel') {
-          this.$message.error('删除请求失败，请重试')
+          that.$message.error('删除请求失败，请重试')
           console.error('删除接口错误：', error)
         }
       } finally {
-        this.deleteLoading = false
+        that.cancelLoading = false
+      }
+    },
+
+    // 查看信令详情
+    handleView (row) {
+      // 格式化信令数据
+      const ueInfo = row.ueType ? (row.ueType === 'all' ? '全部UE' : (row.ueType === 'single' ? `单独UE: ${row.ueIp}` : '-')) : ''
+      this.currentSignaling = {
+        appInfo: row.appInstanceId ? `${row.appName ? row.appName : row.appInstanceId} ${row.appName ? `[${row.appInstanceId}]` : ''}` : '',
+        targetIp: row.targetIp || '',
+        targetDnai: row.targetDnai || '',
+        ueInfo: ueInfo,
+        dnn: row.dnn || '',
+        sst: row.sst || '',
+        sd: row.sd || '',
+        networkSegment: row.networkSegment || '',
+        statusText: this.formatStatus(row),
+        createTime: this.formatDateTime(row),
+        responseInfo: row.responseBody || ''
+      }
+      // 显示查看弹窗
+      this.showViewDialog = true
+    },
+
+    // 删除失败信令
+    async handleDeleteFailed (id) {
+      const that = this
+      try {
+        await that.$confirm('确定要删除该失败信令吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        that.deleteLoading = true
+        const res = await signaling.deleteFailedSignaling(id)
+        if (res.data && res.data.code === 200) {
+          that.$message.success('信令删除成功！')
+          // 检查当前页是否只有一条数据，如果是则跳转到上一页
+          if (that.paginatedSignalingList.length === 1 && that.currentPage > 1) {
+            that.currentPage--
+            that.pageNum--
+          }
+          that.refreshSignalingList()
+        } else {
+          if (res.data && res.data.msg) {
+            that.$message.error(res.data.msg)
+          } else {
+            that.$message.error('信令删除失败')
+          }
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          that.$message.error('删除请求失败，请重试')
+          console.error('删除接口错误：', error)
+        }
+      } finally {
+        that.deleteLoading = false
       }
     },
 
@@ -519,7 +829,7 @@ export default {
       return iconMap[status] || ''
     },
     formatDateTime (row) {
-      if (!row.createTime) return '无'
+      if (!row || !row.createTime) return ''
       return new Date(row.createTime).toLocaleString('zh-CN')
     }
   }
@@ -551,7 +861,7 @@ export default {
         label
     {
         font-size: 15px;
-        color: rgba(255, 255, 255, 0.9);
+        color: #000;
     }
 
     }
@@ -563,8 +873,64 @@ export default {
         width: 100%;
     }
 
-    :deep(.signaling-dialog .el-dialog__title) {
-        color: #fff !important;
+    /* 弹窗标题样式 */
+    .signaling-dialog {
+        .el-dialog__header {
+            position: relative;
+            padding: 0 !important;
+            background: #3E279B !important;
+            border-radius: 8px 8px 0 0 !important;
+            margin: 10px !important;
+            margin-bottom: 0 !important;
+            height: 80px !important;
+        }
+        .el-dialog__body {
+            background: #fff !important;
+            padding: 20px !important;
+        }
+    }
+
+    /* 弹窗基础样式 */
+    .signaling-dialog {
+        z-index: 1001 !important;
+    }
+
+    /* 确保弹窗内容区域不透明 */
+    .signaling-dialog .el-dialog {
+        background: #fff !important;
+    }
+
+    /* 查看弹窗：透明遮罩，无模糊效果 */
+    body .view-dialog {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        z-index: 1000 !important;
+        opacity: 1 !important;
+        filter: none !important;
+        transition: none !important;
+    }
+
+    /* 信令下发弹窗：恢复默认遮罩效果 */
+    body .deploy-dialog {
+        /* 恢复默认样式，不做特殊处理 */
+    }
+
+    /* 确保弹窗内容直接显示 */
+    .el-dialog {
+        transition: none !important;
+        animation: none !important;
+    }
+
+    /* 自定义标题样式 */
+    .custom-dialog-title {
+        color: #000 !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        position: absolute !important;
+        left: 20px !important;
+        top: 10px !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     .signaling-select,
@@ -576,7 +942,11 @@ export default {
         background: #fff;
         border: 1px solid #5e40c8;
         border-radius: 8px;
-        color: #000;
+        color: #000 !important;
+    }
+    /deep/ .el-input.is-disabled .el-input__inner {
+        color: #000 !important;
+        background: #fff !important;
     }
 
     }
@@ -622,17 +992,66 @@ export default {
         background: #fff;
         border-radius: 16px;
         padding: 20px;
+        min-height: 490px;
     }
 
-    /deep/ .el-table {
-        --el-table-border-color: #e5e7eb;
+    /* 列表样式 */
+    .list-header {
+        display: flex;
+        align-items: center;
+        background: #e9ecef;
+        border-bottom: 1px solid #dee2e6;
+        padding: 12px 0;
+        font-weight: bold;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .header-item {
+        text-align: center;
+        padding: 0 10px;
+        box-sizing: border-box;
+        color: #000;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .list-body {
+        min-height: 400px;
         max-height: 400px;
         overflow-y: auto;
     }
 
-        /deep/ .el-table th {
-            background: #f5f7fa !important;
-        }
+    .list-item {
+        display: flex;
+        align-items: center;
+        padding: var(--item-padding) 0;
+        transition: background-color 0.3s;
+        min-height: var(--item-height);
+    }
+
+    .data-item {
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .list-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .item-content {
+        text-align: center;
+        padding: 0 10px;
+        box-sizing: border-box;
+        word-break: break-all;
+        color: #000;
+        font-size: 14px;
+        font-weight: normal;
+    }
+
+    .empty-list {
+        text-align: center;
+        padding: 100px 0;
+        color: #909399;
+    }
 
     .status-text {
         display: inline-flex;
@@ -658,5 +1077,53 @@ export default {
 
     .cancel-btn {
         color: #F56C6C;
+    }
+
+    .view-btn {
+        color: #409EFF;
+    }
+
+    .pagination-container {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 20px;
+        font-size: 14px;
+    }
+
+    /deep/ .el-pagination {
+        display: flex;
+        align-items: center;
+    }
+
+    /deep/ .el-pagination__total {
+        margin-right: 10px;
+    }
+
+    /deep/ .el-pagination__sizes {
+        margin-right: 10px;
+    }
+
+    /deep/ .el-pagination__jump {
+        margin-left: 10px;
+    }
+
+    /deep/ .el-pagination__button {
+        border-color: #dcdfe6;
+    }
+
+    /deep/ .el-pagination__button:hover {
+        color: #409eff;
+        border-color: #c6e2ff;
+    }
+
+    /deep/ .el-pagination__active {
+        background-color: #409eff;
+        border-color: #409eff;
+    }
+
+    /deep/ .el-pagination__active:hover {
+        background-color: #66b1ff;
+        border-color: #66b1ff;
     }
 </style>
