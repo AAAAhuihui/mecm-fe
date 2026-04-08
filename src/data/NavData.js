@@ -25,26 +25,10 @@ const NavData = [
   },
   {
     'id': '2.2',
-    'name': 'APP Management',
-    'path': '/app/pakage',
+    'name': 'App Deployment',
+    'path': '/mecm/app/deploy',
     'pageId': '2.2.1',
-    'display': false,
-    'children': [
-      {
-        'id': '2.2.1',
-        'name': 'Package Management',
-        'path': '/mecm/app/package',
-        'pageId': '2.2.1.1',
-        'display': false
-      },
-      {
-        'id': '2.2.2',
-        'name': 'App Instance List',
-        'path': '/mecm/app/instance',
-        'pageId': '2.2.1.2',
-        'display': false
-      }
-    ]
+    'display': false
   },
   {
     'id': '2.3',

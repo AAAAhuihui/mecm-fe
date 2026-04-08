@@ -25,26 +25,10 @@ const NavDataCn = [
   },
   {
     'id': '2.2',
-    'name': '应用管理',
-    'path': '/app/pakage',
+    'name': '应用部署',
+    'path': '/mecm/app/deploy',
     'pageId': '2.2.1',
-    'display': false,
-    'children': [
-      {
-        'id': '2.2.1',
-        'name': '应用包管理',
-        'path': '/mecm/app/package',
-        'pageId': '2.2.1.1',
-        'display': false
-      },
-      {
-        'id': '2.2.3',
-        'name': '应用实例管理',
-        'path': '/mecm/app/instance',
-        'pageId': '2.2.1.2',
-        'display': false
-      }
-    ]
+    'display': false
   },
   {
     'id': '2.3',

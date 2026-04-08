@@ -751,7 +751,7 @@ export default {
       setTimeout(() => {
         appo.setProfile(instanceId).then(res => {
           this.$nextTick(() => {
-            this.$router.push('/mecm/app/instance')
+            this.$router.push('/mecm/app/deploy/instance')
           })
         })
       }, 30000)
