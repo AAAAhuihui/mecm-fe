@@ -44,12 +44,12 @@
 
       <!-- 信令下发弹窗：添加自定义类名修改标题样式 -->
       <el-dialog
-        :title="''"
+        title="信令下发"
         :visible.sync="showDialog"
         width="800px"
         @close="resetForm"
         append-to-body
-        custom-class="signaling-dialog"
+        custom-class="signaling-dialog deploy-dialog"
       >
         <!-- 自定义标题 -->
         <div
@@ -173,6 +173,19 @@
               />
             </div>
           </div>
+
+          <!-- 第六行：UPF -->
+          <div class="form-row">
+            <div class="select-item">
+              <label>UPF</label>
+              <el-input
+                v-model="form.upf"
+                placeholder="请输入UPF"
+                clearable
+                class="signaling-input"
+              />
+            </div>
+          </div>
         </div>
 
         <span
@@ -183,7 +196,7 @@
           <el-button
             type="primary"
             :loading="loading"
-            :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode"
+            :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode || !form.upf"
             @click="handleDeploy"
             class="deploy-btn"
           >
@@ -198,7 +211,8 @@
         :visible.sync="showViewDialog"
         width="800px"
         append-to-body
-        custom-class="signaling-dialog"
+        :modal="false"
+        custom-class="signaling-dialog view-dialog"
       >
         <!-- 自定义标题 -->
         <div
@@ -223,7 +237,7 @@
           <!-- 第二行：目标IP + DNAI编码 -->
           <div class="form-row">
             <div class="select-item">
-              <label>目标IP(N6IP)</label>
+              <label>目标IP</label>
               <el-input
                 v-model="currentSignaling.targetIp"
                 disabled
@@ -353,9 +367,15 @@
           </div>
           <div
             class="header-item"
-            style="flex: 15;"
+            style="flex: 13.5;"
           >
             APP信息
+          </div>
+          <div
+            class="header-item"
+            style="flex: 3;"
+          >
+            DNAI
           </div>
           <div
             class="header-item"
@@ -415,9 +435,15 @@
             </div>
             <div
               class="item-content"
-              style="flex: 15;"
+              style="flex: 13.5;"
             >
               <span v-if="row.appInstanceId">{{ row.appName ? row.appName : row.appInstanceId }} {{ row.appName ? `[${row.appInstanceId}]` : '' }}</span>
+            </div>
+            <div
+              class="item-content"
+              style="flex: 3;"
+            >
+              {{ row.targetDnai }}
             </div>
             <div
               class="item-content"
@@ -498,7 +524,7 @@
             @size-change="handleSizeChange"
             @current-change="handleCurrentChange"
             :current-page="currentPage"
-            :page-sizes="[9, 15, 20, 50]"
+            :page-sizes="[9, 15]"
             :page-size="pageSize"
             layout="total, sizes, prev, pager, next, jumper"
             :total="total"
@@ -526,7 +552,8 @@ export default {
         sst: '',
         sd: '',
         appId: '',
-        dnaiCode: ''
+        dnaiCode: '',
+        upf: ''
       },
       loading: false,
       showLoading: false,
@@ -545,6 +572,7 @@ export default {
     }
   },
   created () {
+    this.updateItemHeight()
     this.loadAppInstanceIdsWithN6Ip()
     this.refreshSignalingList()
   },
@@ -594,7 +622,8 @@ export default {
           networkSegment: that.form.networkSegment || '',
           dnn: that.form.dnn,
           sst: that.form.sst,
-          sd: that.form.sd
+          sd: that.form.sd,
+          upf: that.form.upf || ''
         }
         const res = await signaling.createPolicy(params)
 
@@ -630,7 +659,8 @@ export default {
         sst: '',
         sd: '',
         appId: '',
-        dnaiCode: ''
+        dnaiCode: '',
+        upf: ''
       }
     },
 
@@ -656,8 +686,6 @@ export default {
           }
         }
 
-        // 正常获取数据，不添加测试数据
-
         // 只显示实际数据，不补充空对象
         that.signalingList = data
         that.paginatedSignalingList = data
@@ -681,7 +709,22 @@ export default {
       this.pageSize = size
       this.currentPage = 1
       this.pageNum = 1
+      this.updateItemHeight()
       this.refreshSignalingList()
+    },
+
+    // 更新行高
+    updateItemHeight () {
+      let itemHeight, itemPadding
+      if (this.pageSize === 9) {
+        itemHeight = 40 // 9条 × 40px = 360px
+        itemPadding = '6px'
+      } else if (this.pageSize === 15) {
+        itemHeight = 24 // 15条 × 24px = 360px
+        itemPadding = '2px'
+      }
+      document.documentElement.style.setProperty('--item-height', `${itemHeight}px`)
+      document.documentElement.style.setProperty('--item-padding', itemPadding)
     },
 
     // 删除信令
@@ -841,6 +884,41 @@ export default {
             margin-bottom: 0 !important;
             height: 80px !important;
         }
+        .el-dialog__body {
+            background: #fff !important;
+            padding: 20px !important;
+        }
+    }
+
+    /* 弹窗基础样式 */
+    .signaling-dialog {
+        z-index: 1001 !important;
+    }
+
+    /* 确保弹窗内容区域不透明 */
+    .signaling-dialog .el-dialog {
+        background: #fff !important;
+    }
+
+    /* 查看弹窗：透明遮罩，无模糊效果 */
+    body .view-dialog {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        z-index: 1000 !important;
+        opacity: 1 !important;
+        filter: none !important;
+        transition: none !important;
+    }
+
+    /* 信令下发弹窗：恢复默认遮罩效果 */
+    body .deploy-dialog {
+        /* 恢复默认样式，不做特殊处理 */
+    }
+
+    /* 确保弹窗内容直接显示 */
+    .el-dialog {
+        transition: none !important;
+        animation: none !important;
     }
 
     /* 自定义标题样式 */
@@ -864,7 +942,11 @@ export default {
         background: #fff;
         border: 1px solid #5e40c8;
         border-radius: 8px;
-        color: #000;
+        color: #000 !important;
+    }
+    /deep/ .el-input.is-disabled .el-input__inner {
+        color: #000 !important;
+        background: #fff !important;
     }
 
     }
@@ -934,16 +1016,17 @@ export default {
     }
 
     .list-body {
-        min-height: 450px;
-        max-height: 450px;
+        min-height: 400px;
+        max-height: 400px;
         overflow-y: auto;
     }
 
     .list-item {
         display: flex;
         align-items: center;
-        padding: 12px 0;
+        padding: var(--item-padding) 0;
         transition: background-color 0.3s;
+        min-height: var(--item-height);
     }
 
     .data-item {
