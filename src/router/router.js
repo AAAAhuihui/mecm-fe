@@ -31,9 +31,25 @@ export default new Router({
       component: () => import('../pages/overview/Index.vue')
     },
     {
+      path: '/mecm/app/deploy',
+      component: () => import('../pages/app/AppDeploy.vue'),
+      redirect: '/mecm/app/deploy/package',
+      children: [
+        {
+          path: 'package',
+          name: 'deployPackage',
+          component: () => import('../pages/app/PackageList.vue')
+        },
+        {
+          path: 'instance',
+          name: 'deployInstance',
+          component: () => import('../pages/app/InstanceList.vue')
+        }
+      ]
+    },
+    {
       path: '/mecm/app/package',
-      name: 'package',
-      component: () => import('../pages/app/PackageList.vue')
+      redirect: '/mecm/app/deploy/package'
     }, {
       path: '/mecm/app/ruleconfig',
       name: 'rule',
@@ -46,8 +62,7 @@ export default new Router({
     },
     {
       path: '/mecm/app/instance',
-      name: 'instance',
-      component: () => import('../pages/app/InstanceList.vue')
+      redirect: '/mecm/app/deploy/instance'
     },
     {
       path: '/mecm/node/index',
