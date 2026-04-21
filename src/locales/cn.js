@@ -29,6 +29,7 @@ const cn = {
     mecm: '管理平台',
     overview: '概览',
     appMana: '应用管理',
+    appDeploy: '应用部署',
     packageMana: '应用包管理',
     packageDist: '应用包分发',
     appInstance: '应用实例管理',

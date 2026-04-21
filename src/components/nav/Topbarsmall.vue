@@ -116,6 +116,15 @@ export default {
     }
   },
   methods: {
+    getActiveMenuPath (path) {
+      if (path === '/mecm/app/distribution' ||
+        path === '/mecm/app/ruleconfig' ||
+        path === '/mecm/app/ruleconfig/addTrafficRules' ||
+        path.indexOf('/mecm/app/deploy') === 0) {
+        return '/mecm/app/deploy'
+      }
+      return path
+    },
     handleSelect (path) {
       this.indexName = path
       this.$root.$emit('refreshDnd')
@@ -126,15 +135,7 @@ export default {
   },
   watch: {
     $route (to, from) {
-      this.indexName = to.path
-      // 解决MECDeveloper下DevTools导航子菜单首次点击没有选中状态问题
-      if (this.indexName === '/mecm/app/distribution') {
-        this.indexName = '/mecm/app/package'
-      } else if (this.indexName === '/mecm/app/ruleconfig') {
-        this.indexName = '/mecm/app/instance'
-      } else if (this.indexName === '/mecm/app/ruleconfig/addTrafficRules') {
-        this.indexName = '/mecm/app/instance'
-      }
+      this.indexName = this.getActiveMenuPath(to.path)
       // post message to unified platform
       let content = window
       content.parent.postMessage({
@@ -148,14 +149,7 @@ export default {
     }
   },
   mounted () {
-    let indexName = this.$route.fullPath
-    if (indexName === '/mecm/app/distribution') {
-      this.indexName = '/mecm/app/package'
-    } else if (indexName === '/mecm/app/ruleconfig') {
-      this.indexName = '/mecm/app/instance'
-    } else if (indexName === '/mecm/app/ruleconfig/addTrafficRules') {
-      this.indexName = '/mecm/app/instance'
-    }
+    this.indexName = this.getActiveMenuPath(this.$route.path)
   }
 }
 

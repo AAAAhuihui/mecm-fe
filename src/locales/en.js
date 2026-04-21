@@ -29,6 +29,7 @@ const en = {
     mecm: 'Manager',
     overview: 'Overview',
     appMana: 'App Management',
+    appDeploy: 'App Deployment',
     packageMana: 'Package List',
     packageDist: 'Package Distribution',
     appInstance: 'App Instance List',

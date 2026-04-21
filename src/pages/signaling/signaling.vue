@@ -195,7 +195,9 @@
           <el-button
             type="primary"
             :loading="loading"
+
             :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || (form.ueType === 'all' && !form.networkSegment) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode || !form.upf"
+
             @click="handleDeploy"
             class="deploy-btn"
           >
@@ -1125,6 +1127,7 @@ export default {
         background-color: #66b1ff;
         border-color: #66b1ff;
     }
+
 </style>
 
 <style lang='less'>
