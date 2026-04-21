@@ -15,7 +15,7 @@
   -->
 
 <template>
-  <div>
+  <div class="package-list-page">
     <div class="topLabel">
       {{ $t('nav.packageMana') }}
       <div class="block" />
@@ -287,7 +287,7 @@ export default {
       sessionStorage.setItem('appRow', JSON.stringify(row))
       sessionStorage.setItem('appId', row.appId)
       this.$nextTick(
-        this.$router.push('/mecm/app/distribution?appId=' + row.appId)
+        this.$router.push('/mecm/app/deploy/distribution?appId=' + row.appId)
       )
     },
     async getAppstoreList () {
@@ -392,6 +392,33 @@ export default {
 </script>
 
 <style lang='less' scoped>
+.package-list-page{
+  width: 1416px;
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+
+  .btnMain{
+    position: static;
+    top: auto;
+    right: auto;
+    height: auto;
+    margin: 0 0 16px;
+  }
+
+  .contentList{
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+
+  .tableDiv,
+  .tableDiv > .el-row,
+  .tableDiv > .el-row > .el-col.table{
+    width: 100%;
+  }
+}
+
 .shortdesc{
   overflow: hidden;
   text-overflow: ellipsis;

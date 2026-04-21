@@ -41,6 +41,11 @@ export default new Router({
           component: () => import('../pages/app/PackageList.vue')
         },
         {
+          path: 'distribution',
+          name: 'deployDistribution',
+          component: () => import('../pages/app/PackageDetail.vue')
+        },
+        {
           path: 'instance',
           name: 'deployInstance',
           component: () => import('../pages/app/InstanceList.vue')
@@ -58,7 +63,10 @@ export default new Router({
     {
       path: '/mecm/app/distribution',
       name: 'detail',
-      component: () => import('../pages/app/PackageDetail.vue')
+      redirect: to => ({
+        path: '/mecm/app/deploy/distribution',
+        query: to.query
+      })
     },
     {
       path: '/mecm/app/instance',

@@ -18,7 +18,7 @@
   <div>
     <!-- 与edgeNodes相同位置的标题 -->
     <div class="topLabel">
-      边缘节点信令管理
+      边缘节点规则下发
     </div>
 
     <!-- 核心输入区域 -->

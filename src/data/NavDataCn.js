@@ -69,7 +69,7 @@ const NavDataCn = [
   },
   {
     'id': '2.6',
-    'name': '信令管理',
+    'name': '规则下发',
     'path': '/mecm/signaling/manager',
     'pageId': '2.6.1',
     'display': true,

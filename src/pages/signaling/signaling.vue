@@ -17,7 +17,7 @@
   <div>
     <!-- 统一标题样式 -->
     <div class="topLabel">
-      边缘节点信令管理
+      边缘节点规则下发
     </div>
 
     <!-- 统一内容容器 -->
@@ -30,7 +30,7 @@
           @click="showDialog = true"
           class="deploy-btn"
         >
-          信令下发
+          规则下发
         </el-button>
         <el-button
           type="primary"
@@ -44,7 +44,7 @@
 
       <!-- 信令下发弹窗：添加自定义类名修改标题样式 -->
       <el-dialog
-        title="信令下发"
+        title="规则下发"
         :visible.sync="showDialog"
         width="800px"
         append-to-body
@@ -55,7 +55,7 @@
           slot="title"
           class="custom-dialog-title"
         >
-          信令下发
+          规则下发
         </div>
         <div class="form-content">
           <!-- 第一行：UE类型 + UE IP -->

@@ -15,7 +15,7 @@
   -->
 
 <template>
-  <div>
+  <div class="instance-list-page">
     <div class="topLabel">
       {{ $t('nav.appInstance') }}
       <div class="block" />
@@ -108,7 +108,6 @@
                 type="button"
                 size="small"
                 @click="showReason(scope.row)"
-                :disabled="scope.row.operationalStatus === 'Instantiated'"
               >
                 {{ $t('tip.operationInfo') }}
               </el-button>
@@ -454,6 +453,24 @@ export default {
 </script>
 
 <style lang='less' scoped>
+.instance-list-page{
+  width: 1416px;
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+
+  .contentList{
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+
+  .tableDiv,
+  .tableDiv > .el-table{
+    width: 100%;
+  }
+}
+
   .detailForm{
     p{
       margin-bottom: 12px;

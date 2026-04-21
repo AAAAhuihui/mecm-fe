@@ -30,6 +30,9 @@
           <el-menu-item index="/mecm/app/deploy/package">
             {{ $t('nav.packageMana') }}
           </el-menu-item>
+          <el-menu-item index="/mecm/app/deploy/distribution">
+            {{ $t('app.packageList.distriAndDeploy') }}
+          </el-menu-item>
           <el-menu-item index="/mecm/app/deploy/instance">
             {{ $t('nav.appInstance') }}
           </el-menu-item>
@@ -60,6 +63,10 @@ export default {
   },
   methods: {
     syncActiveTab (path) {
+      if (path.indexOf('/mecm/app/deploy/distribution') === 0) {
+        this.activeTab = '/mecm/app/deploy/distribution'
+        return
+      }
       if (path.indexOf('/mecm/app/deploy/instance') === 0) {
         this.activeTab = '/mecm/app/deploy/instance'
         return
@@ -129,16 +136,21 @@ export default {
     }
 
     .btnMain {
+      position: static;
+      top: auto;
+      right: auto;
+      z-index: auto;
+      height: auto;
       margin: 0 0 16px;
     }
 
     .contentList {
       margin: 0;
       width: 100%;
-      padding: 24px 3%;
-      min-height: calc(100vh - 240px);
-      border-radius: 18px;
-      box-shadow: 0 8px 34px 0 rgba(56, 8, 121, 0.06);
+      padding: 30px;
+      min-height: calc(100vh - 260px);
+      border-radius: 25px;
+      box-shadow: none;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -174,7 +186,7 @@ export default {
     }
 
     .btnSearch {
-      right: 3%;
+      right: 4%;
     }
   }
 }

@@ -56,6 +56,7 @@ import Style from 'ol/style/Style'
 import Icon from 'ol/style/Icon'
 import XYZ from 'ol/source/XYZ'
 import InteractionSelect from 'ol/interaction/Select'
+import { fromLonLat } from 'ol/proj'
 
 import axios from 'axios'
 export default {
@@ -78,6 +79,9 @@ export default {
       continue: true,
       btnShow: false,
       map: null,
+      clusterLayer: null,
+      mapClickHandler: null,
+      selectSingleClick: null,
       showMainView: true,
       language: localStorage.getItem('language') || 'cn',
       getNodeTimeout: null,
@@ -108,11 +112,37 @@ export default {
     clearInterval(this.getNodeTimeout)
   },
   methods: {
+    normalizeCoordinate (coordinate) {
+      if (Array.isArray(coordinate) && coordinate.length >= 2) {
+        let lon = parseFloat(coordinate[0])
+        let lat = parseFloat(coordinate[1])
+        return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null
+      }
+      if (typeof coordinate === 'string') {
+        let parts = coordinate.split(',')
+        if (parts.length < 2) {
+          return null
+        }
+        let lon = parseFloat(parts[0])
+        let lat = parseFloat(parts[1])
+        return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null
+      }
+      return null
+    },
+    isValidCoordinate (coordinate) {
+      return Array.isArray(coordinate) && coordinate.length === 2 &&
+        Number.isFinite(coordinate[0]) && Number.isFinite(coordinate[1]) &&
+        coordinate[0] >= -180 && coordinate[0] <= 180 &&
+        coordinate[1] >= -90 && coordinate[1] <= 90
+    },
+    transformCoordinate (coordinate) {
+      return fromLonLat(coordinate)
+    },
     getNodeList () {
       inventory.getList(2).then(res => {
         if (res.data && res.data.length > 0) {
           res.data.forEach((item, index) => {
-            item.coordinates = item.coordinates.split(',')
+            item.coordinates = this.normalizeCoordinate(item.coordinates)
             item.status = 'Online'
             this.nodeStatusList.forEach(val => {
               if (val.checkedIp === item.mechostIp) {
@@ -195,7 +225,7 @@ export default {
         })
     },
     regAndSetOption (myDetailMap, name, mapJson, flag) {
-      let data = this.nodeData
+      let data = this.nodeData.filter(item => this.isValidCoordinate(item.coordinates))
       data.forEach(item => {
         item.coord = item.coordinates
       })
@@ -346,11 +376,20 @@ export default {
     openlayers (data) {
       let _this = this
       this.btnShow = true
+
+      let detailNodes = data.filter(item => this.isValidCoordinate(item.coordinates))
+      if (detailNodes.length === 0) {
+        detailNodes = this.nodeData.filter(item => this.isValidCoordinate(item.coordinates))
+      }
+      if (detailNodes.length === 0) {
+        return
+      }
+
+      let center = this.transformCoordinate(detailNodes[0].coordinates)
       if (this.map) {
         this.map.setView(new View({
-          projection: 'EPSG:4326',
-          center: data[0].coordinates,
-          zoom: 16
+          center: center,
+          zoom: 13
         }))
       } else {
         this.map = new Map({
@@ -358,31 +397,27 @@ export default {
           layers: [
             new TileLayer({
               source: new XYZ({
-                url: 'http://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                url: 'https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png'
               })
 
             })
           ],
           view: new View({
-            projection: 'EPSG:4326',
-            center: data[0].coordinates,
-            zoom: 16
+            center: center,
+            zoom: 13
           })
         })
       }
-      let lnglats = []
-      this.nodeData.forEach(item => {
-        lnglats.push(item.coordinates)
-      })
+      let validNodes = this.nodeData.filter(item => this.isValidCoordinate(item.coordinates))
 
       // 创建Feature对象集合
       let features = []
-      for (let lnglat of lnglats) {
+      for (let item of validNodes) {
         features.push(
           new OlFeature({
             type: 'icon',
-            geometry: new OlGeomPoint(lnglat),
-            eventTarget_: data
+            geometry: new OlGeomPoint(this.transformCoordinate(item.coordinates)),
+            nodeData: item
           })
         )
       }
@@ -400,35 +435,51 @@ export default {
         style: new Style({
           image: new Icon({
             src: './outer.png',
-            scale: 0.3
+            scale: 0.75
           })
         }),
         zIndex: 66
       })
 
-      this.map.addLayer(clusters)
+      if (this.clusterLayer) {
+        this.map.removeLayer(this.clusterLayer)
+      }
+      this.clusterLayer = clusters
+      this.map.addLayer(this.clusterLayer)
 
-      this.map.on('click', (e) => {
+      if (this.mapClickHandler) {
+        this.map.un('click', this.mapClickHandler)
+      }
+      this.mapClickHandler = (e) => {
         // 在点击时获取像素区域
         var pixel = this.map.getEventPixel(e.originalEvent)
         this.map.forEachFeatureAtPixel(pixel, function (feature) {
-          data.forEach(item => {
-            if (feature.geometryChangeKey_.target.extent_[0] === parseFloat(item.coordinates[0])) {
-              _this.$emit('node', item)
+          let clusterFeatures = feature.get('features')
+          if (clusterFeatures && clusterFeatures.length > 0) {
+            let node = clusterFeatures[0].get('nodeData')
+            if (node) {
+              _this.$emit('node', node)
             }
-          })
+          }
         })
-      })
+      }
+      this.map.on('click', this.mapClickHandler)
 
-      let selectSingleClick = new InteractionSelect({})
+      if (this.selectSingleClick) {
+        this.map.removeInteraction(this.selectSingleClick)
+      }
+      this.selectSingleClick = new InteractionSelect({})
 
       // 监听选中事件，然后在事件处理函数中改变被选中的`feature`的样式
-      this.map.addInteraction(selectSingleClick)
-      selectSingleClick.on('select', function (event) {
+      this.map.addInteraction(this.selectSingleClick)
+      this.selectSingleClick.on('select', function (event) {
+        if (!event.selected || event.selected.length === 0) {
+          return
+        }
         event.selected[0].setStyle(new Style({
           image: new Icon({
             src: './inner.png',
-            scale: 0.3
+            scale: 0.85
           })
         }))
       })

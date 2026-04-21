@@ -79,6 +79,30 @@ export default {
     }
   },
   methods: {
+    parseUsagePercent (usageData) {
+      if (usageData === null || usageData === undefined) {
+        return 0
+      }
+
+      if (typeof usageData === 'number') {
+        return Number(usageData.toFixed(2))
+      }
+
+      if (typeof usageData === 'string') {
+        let value = parseFloat(usageData)
+        return Number.isNaN(value) ? 0 : Number(value.toFixed(2))
+      }
+
+      if (typeof usageData === 'object') {
+        let used = parseFloat(usageData.used)
+        let total = parseFloat(usageData.total)
+        if (!Number.isNaN(used) && !Number.isNaN(total) && total > 0) {
+          return Number(((used / total) * 100).toFixed(2))
+        }
+      }
+
+      return 0
+    },
     regAndSetOption (id, data) {
       let seriesArr = [
         {
@@ -191,9 +215,9 @@ export default {
       })
     },
     setData () {
-      this.chartDataCpu.value = parseFloat(((this.kpiInfo.cpuusage.used / this.kpiInfo.cpuusage.total) * 100).toFixed(2))
-      this.chartDataMem.value = parseFloat(((this.kpiInfo.memusage.used / this.kpiInfo.memusage.total) * 100).toFixed(2))
-      this.chartDataDisk.value = 0
+      this.chartDataCpu.value = this.parseUsagePercent(this.kpiInfo.cpuusage)
+      this.chartDataMem.value = this.parseUsagePercent(this.kpiInfo.memusage)
+      this.chartDataDisk.value = this.parseUsagePercent(this.kpiInfo.diskusage || this.kpiInfo.diskUsage || this.kpiInfo.storageusage || this.kpiInfo.storageUsage)
 
       this.regAndSetOption('cpuChart', this.chartDataCpu)
       this.regAndSetOption('memChart', this.chartDataMem)

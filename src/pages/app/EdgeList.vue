@@ -15,7 +15,7 @@
   -->
 
 <template>
-  <div>
+  <div class="edge-list-page">
     <div class="btnMain">
       <el-button
         type="primary"
@@ -229,6 +229,7 @@
               v-model="configForm.appInstanceDescription"
             />
           </el-form-item>
+          <!--
           <el-form-item
             :label="$t('system.edgeNodes.hwCapability')"
             prop="hwCapabilities"
@@ -246,6 +247,7 @@
               </el-checkbox>
             </el-checkbox-group>
           </el-form-item>
+          -->
           <p v-if="templateInputs.length>0">
             Apptemplate Information
           </p>
@@ -940,6 +942,32 @@ export default {
 </script>
 
 <style lang='less' scoped>
+.edge-list-page{
+  width: 1416px;
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+
+  .btnMain{
+    position: static;
+    top: auto;
+    right: auto;
+    height: auto;
+    margin: 0 0 16px;
+  }
+
+  .contentList{
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+
+  .tableDiv,
+  .tableDiv > .el-table{
+    width: 100%;
+  }
+}
+
 .configForm{
   p{
     margin-bottom: 12px;
