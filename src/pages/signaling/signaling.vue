@@ -27,7 +27,7 @@
         <el-button
           type="primary"
           icon="el-icon-send"
-          @click="showDialog = true"
+          @click="handleDeployDialogOpen"
           class="deploy-btn"
         >
           规则下发
@@ -40,7 +40,96 @@
         >
           刷新数据
         </el-button>
+        <div
+          class="core-network-status"
+          :class="{ 'core-network-status-qiantong': isQiantongCoreNetwork }"
+        >
+          <span class="core-network-status-dot" />
+          <span class="core-network-status-label">当前核心网</span>
+          <span class="core-network-status-name">{{ currentCoreNetworkLabel }}</span>
+        </div>
+        <el-button
+          type="primary"
+          icon="el-icon-setting"
+          @click="handleCoreNetworkOpen"
+          class="core-network-btn core-network-action"
+        >
+          核心网选择
+        </el-button>
       </div>
+
+      <!-- 核心网选择弹窗 -->
+      <el-dialog
+        title="核心网选择"
+        :visible.sync="showCoreNetworkDialog"
+        width="560px"
+        append-to-body
+        custom-class="signaling-dialog core-network-dialog"
+      >
+        <div
+          slot="title"
+          class="custom-dialog-title"
+        >
+          核心网选择
+        </div>
+        <div class="form-content core-network-form">
+          <div class="form-row">
+            <div class="select-item">
+              <label>核心网类型</label>
+              <el-select
+                v-model="coreNetworkForm.coreNetworkType"
+                placeholder="请选择核心网类型"
+                class="signaling-select"
+                @change="handleCoreNetworkChange"
+              >
+                <el-option
+                  v-for="item in coreNetworkOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="select-item">
+              <label>NEF IP</label>
+              <el-input
+                v-model="coreNetworkForm.nefIp"
+                placeholder="请输入NEF IP"
+                clearable
+                class="signaling-input"
+              />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="select-item">
+              <label>NEF port</label>
+              <el-input
+                v-model="coreNetworkForm.nefPort"
+                placeholder="请输入NEF port"
+                clearable
+                class="signaling-input"
+              />
+            </div>
+          </div>
+        </div>
+        <span
+          slot="footer"
+          class="dialog-footer"
+        >
+          <el-button @click="showCoreNetworkDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="coreNetworkLoading"
+            :disabled="!coreNetworkForm.coreNetworkType || !coreNetworkForm.nefIp || !coreNetworkForm.nefPort"
+            @click="handleCoreNetworkSave"
+            class="deploy-btn"
+          >
+            确定
+          </el-button>
+        </span>
+      </el-dialog>
 
       <!-- 信令下发弹窗：添加自定义类名修改标题样式 -->
       <el-dialog
@@ -67,10 +156,12 @@
                 placeholder="请选择UE类型"
                 clearable
                 class="signaling-select"
+                :disabled="isQiantongCoreNetwork"
               >
                 <el-option
                   label="单独UE"
                   value="single"
+                  :disabled="isQiantongCoreNetwork"
                 />
                 <el-option
                   label="全部UE"
@@ -545,6 +636,7 @@ export default {
   data () {
     return {
       showDialog: false,
+      showCoreNetworkDialog: false,
       form: {
         ueType: '',
         ueIp: '',
@@ -557,11 +649,22 @@ export default {
         upf: ''
       },
       loading: false,
+      coreNetworkLoading: false,
       showLoading: false,
       cancelLoading: false,
       deleteLoading: false,
       showViewDialog: false,
       currentSignaling: {},
+      coreNetworkOptions: [
+        { label: '默认核心网', value: 'default' },
+        { label: '商业核心网-千通', value: 'qiantong' }
+      ],
+      coreNetworkConfigs: [],
+      coreNetworkForm: {
+        coreNetworkType: 'default',
+        nefIp: '192.168.254.154',
+        nefPort: 8000
+      },
       appList: [],
       signalingList: [],
       paginatedSignalingList: [],
@@ -572,12 +675,120 @@ export default {
       emptyText: '暂无信令数据'
     }
   },
+  computed: {
+    isQiantongCoreNetwork () {
+      return this.coreNetworkForm.coreNetworkType === 'qiantong'
+    },
+    currentCoreNetworkLabel () {
+      const option = this.coreNetworkOptions.find(item => item.value === this.coreNetworkForm.coreNetworkType)
+      return option ? option.label : '默认核心网'
+    }
+  },
   created () {
     this.updateItemHeight()
+    this.loadCoreNetworkConfigs().then(() => {
+      this.refreshSignalingList()
+    })
     this.loadAppInstanceIdsWithN6Ip()
-    this.refreshSignalingList()
   },
   methods: {
+    async handleCoreNetworkOpen () {
+      await this.loadCoreNetworkConfigs()
+      this.showCoreNetworkDialog = true
+    },
+
+    async loadCoreNetworkConfigs () {
+      const that = this
+      try {
+        const res = await signaling.getCoreNetworkConfigs()
+        const responseData = res.data || res
+        if (responseData.code === 200 && Array.isArray(responseData.data)) {
+          that.coreNetworkConfigs = responseData.data
+          const selectedType = window.localStorage.getItem('signalingCoreNetworkType') ||
+            that.coreNetworkForm.coreNetworkType ||
+            'default'
+          const selectedConfig = that.coreNetworkConfigs.find(item => item.coreNetworkType === selectedType) ||
+            that.coreNetworkConfigs.find(item => item.coreNetworkType === 'default') ||
+            that.coreNetworkConfigs[0]
+          if (selectedConfig) {
+            that.coreNetworkForm = {
+              coreNetworkType: selectedConfig.coreNetworkType,
+              nefIp: selectedConfig.nefIp,
+              nefPort: selectedConfig.nefPort
+            }
+            that.applyCoreNetworkFormRules()
+          }
+        }
+      } catch (error) {
+        console.error('加载核心网配置失败:', error)
+      }
+    },
+
+    handleCoreNetworkChange (coreNetworkType) {
+      const config = this.coreNetworkConfigs.find(item => item.coreNetworkType === coreNetworkType)
+      this.coreNetworkForm = {
+        coreNetworkType: coreNetworkType,
+        nefIp: config && config.nefIp ? config.nefIp : '192.168.254.154',
+        nefPort: config && config.nefPort ? config.nefPort : 8000
+      }
+      window.localStorage.setItem('signalingCoreNetworkType', coreNetworkType)
+      this.applyCoreNetworkFormRules()
+      this.currentPage = 1
+      this.pageNum = 1
+      this.refreshSignalingList()
+    },
+
+    getIsQiantongCoreNetwork () {
+      return this.coreNetworkForm.coreNetworkType === 'qiantong'
+    },
+
+    applyCoreNetworkFormRules () {
+      if (this.getIsQiantongCoreNetwork()) {
+        this.form.ueType = 'all'
+        this.form.ueIp = ''
+      }
+    },
+
+    handleDeployDialogOpen () {
+      this.applyCoreNetworkFormRules()
+      this.showDialog = true
+    },
+
+    async handleCoreNetworkSave () {
+      const portNumber = Number(this.coreNetworkForm.nefPort)
+      if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) {
+        this.$message.warning('请输入1-65535范围内的端口')
+        return
+      }
+      this.coreNetworkLoading = true
+      try {
+        const params = {
+          coreNetworkType: this.coreNetworkForm.coreNetworkType,
+          nefIp: this.coreNetworkForm.nefIp,
+          nefPort: portNumber
+        }
+        const res = await signaling.saveCoreNetworkConfig(params)
+        const responseData = res.data || res
+        if (responseData.code === 200) {
+          this.$message.success('核心网配置保存成功')
+          this.showCoreNetworkDialog = false
+          window.localStorage.setItem('signalingCoreNetworkType', this.coreNetworkForm.coreNetworkType)
+          await this.loadCoreNetworkConfigs()
+          this.applyCoreNetworkFormRules()
+          this.currentPage = 1
+          this.pageNum = 1
+          this.refreshSignalingList()
+        } else {
+          this.$message.error(responseData.msg || '核心网配置保存失败')
+        }
+      } catch (error) {
+        this.$message.error('核心网配置保存失败')
+        console.error(error)
+      } finally {
+        this.coreNetworkLoading = false
+      }
+    },
+
     // ✅【最终修复】加载APPID列表，解决“暂无APPID数据”问题
     async loadAppInstanceIdsWithN6Ip () {
       const that = this
@@ -618,7 +829,8 @@ export default {
           appId: that.form.appId,
           dnai: that.form.dnaiCode,
           targetIp: targetIp,
-          ueType: that.form.ueType,
+          coreNetworkType: that.coreNetworkForm.coreNetworkType,
+          ueType: that.getIsQiantongCoreNetwork() ? 'all' : that.form.ueType,
           ueIp: that.form.ueIp || '',
           networkSegment: that.form.networkSegment || '',
           dnn: that.form.dnn,
@@ -653,7 +865,7 @@ export default {
     // 重置表单
     resetForm () {
       this.form = {
-        ueType: '',
+        ueType: this.getIsQiantongCoreNetwork() ? 'all' : '',
         ueIp: '',
         networkSegment: '',
         dnn: '',
@@ -673,7 +885,8 @@ export default {
       try {
         const params = {
           page: that.currentPage,
-          size: that.pageSize
+          size: that.pageSize,
+          coreNetworkType: that.coreNetworkForm.coreNetworkType
         }
         const res = await signaling.getAllSignaling(params)
         let data = []
@@ -987,6 +1200,70 @@ export default {
         background: #40A0C8;
     }
 
+    }
+
+    .core-network-btn {
+        height: 38px;
+        padding: 0 30px;
+        background: #5e40c8;
+        border-color: #5e40c8;
+        border-radius: 8px;
+        &:hover
+    {
+        background: #7557df;
+        border-color: #7557df;
+    }
+
+    }
+
+    .core-network-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 0 16px;
+        border: 1px solid rgba(39, 137, 155, 0.45);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 4px 12px rgba(16, 24, 40, 0.12);
+        color: #1f2933;
+        white-space: nowrap;
+    }
+
+    .core-network-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #27899B;
+        box-shadow: 0 0 0 4px rgba(39, 137, 155, 0.15);
+        flex: 0 0 auto;
+    }
+
+    .core-network-status-label {
+        color: #5f6b7a;
+        font-size: 13px;
+    }
+
+    .core-network-status-name {
+        color: #1f2933;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .core-network-status-qiantong {
+        border-color: rgba(94, 64, 200, 0.45);
+        background: #f6f2ff;
+        .core-network-status-dot {
+            background: #5e40c8;
+            box-shadow: 0 0 0 4px rgba(94, 64, 200, 0.16);
+        }
+        .core-network-status-name {
+            color: #3E279B;
+        }
+    }
+
+    .core-network-action {
+        margin-left: auto;
     }
 
     .table-container {

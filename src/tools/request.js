@@ -374,6 +374,14 @@ let signaling = {
 
   deleteFailedSignaling (id) {
     return DELETE(inventoryApi + '/signaling/delete-failed', { id: id })
+  },
+
+  getCoreNetworkConfigs () {
+    return GET(inventoryApi + '/signaling/core-network-configs')
+  },
+
+  saveCoreNetworkConfig (params) {
+    return POST(inventoryApi + '/signaling/core-network-configs', params)
   }
 }
 
