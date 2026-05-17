@@ -361,6 +361,13 @@ let signaling = {
     return GET(inventoryApi + '/signaling/show', params)
   },
 
+  /** 按 appInstanceId 查询是否仍有信令/规则下发记录（逗号分隔可传多个） */
+  getSignalingProgress (appInstanceIds) {
+    return GET(inventoryApi + '/tenants/' + getUserId() + '/signaling/progress', {
+      appInstanceIds: appInstanceIds
+    })
+  },
+
   cancelSignaling (id) {
     return DELETE(inventoryApi + '/signaling/delete', { id: id })
   },

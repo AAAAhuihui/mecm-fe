@@ -208,6 +208,72 @@
             </el-select>
           </el-form-item>
           <el-form-item
+            :label="$t('app.distriList.cpuRequest')"
+            prop="cpuRequest"
+            label-width="140px"
+          >
+            <el-input
+              v-model="configForm.cpuRequest"
+              :placeholder="$t('app.distriList.cpuRequestPlaceholder')"
+            />
+          </el-form-item>
+          <el-form-item
+            :label="$t('app.distriList.memoryRequest')"
+            prop="memoryRequest"
+            label-width="140px"
+          >
+            <el-input
+              v-model="configForm.memoryRequest"
+              :placeholder="$t('app.distriList.memoryRequestPlaceholder')"
+            >
+              <template slot="append">
+                Mi
+              </template>
+            </el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('app.distriList.mountType')"
+            prop="mountType"
+            label-width="140px"
+          >
+            <el-select
+              v-model="configForm.mountType"
+              :placeholder="$t('app.distriList.selectMountType')"
+              style="width: 100%"
+            >
+              <el-option
+                :label="$t('app.distriList.mountTypeNone')"
+                value=""
+              />
+              <el-option
+                :label="$t('app.distriList.mountTypeHostPath')"
+                value="hostPath"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            v-if="configForm.mountType === 'hostPath'"
+            :label="$t('app.distriList.hostPathField')"
+            prop="hostPath"
+            label-width="140px"
+          >
+            <el-input
+              v-model="configForm.hostPath"
+              :placeholder="$t('app.distriList.hostPathPlaceholder')"
+            />
+          </el-form-item>
+          <el-form-item
+            v-if="configForm.mountType === 'hostPath'"
+            :label="$t('app.distriList.containerMountPath')"
+            prop="containerMountPath"
+            label-width="140px"
+          >
+            <el-input
+              v-model="configForm.containerMountPath"
+              :placeholder="$t('app.distriList.containerMountPathPlaceholder')"
+            />
+          </el-form-item>
+          <el-form-item
             :label="$t('app.distriList.appName')"
             prop="appName"
             label-width="140px"
@@ -432,7 +498,12 @@ export default {
         appInstanceDescription: '',
         appId: this.appId,
         hwCapabilities: [],
-        selectedNetworkPlane: 'default' // [新增] 2026-01-05 选中的网络平面，默认为 default
+        selectedNetworkPlane: 'default', // [新增] 2026-01-05 选中的网络平面，默认为 default
+        cpuRequest: '',
+        memoryRequest: '',
+        mountType: '',
+        hostPath: '',
+        containerMountPath: ''
       },
       dataLoading: true,
       tableData: [],
@@ -485,6 +556,18 @@ export default {
         ],
         selectedNetworkPlane: [
           { required: true, message: '请选择网络平面', trigger: 'change' }
+        ],
+        cpuRequest: [
+          { validator: this.validateResourceRequest, trigger: 'blur' }
+        ],
+        memoryRequest: [
+          { validator: this.validateResourceRequest, trigger: 'blur' }
+        ],
+        hostPath: [
+          { validator: this.validateHostPathMount, trigger: 'blur' }
+        ],
+        containerMountPath: [
+          { validator: this.validateHostPathMount, trigger: 'blur' }
         ]
       }
     }
@@ -533,7 +616,13 @@ export default {
         appName: '',
         appInstanceDescription: '',
         appId: this.appId,
-        hwCapabilities: []
+        hwCapabilities: [],
+        selectedNetworkPlane: 'default',
+        cpuRequest: '',
+        memoryRequest: '',
+        mountType: '',
+        hostPath: '',
+        containerMountPath: ''
       }
       if (this.selectData !== null && this.selectData.length > 0) {
         let allStatus = []
@@ -616,7 +705,12 @@ export default {
           appInstanceDescription: '',
           appId: this.appId,
           hwCapabilities: [],
-          selectedNetworkPlane: 'default' // [修复] 重置网络平面选择为默认值
+          selectedNetworkPlane: 'default', // [修复] 重置网络平面选择为默认值
+          cpuRequest: '',
+          memoryRequest: '',
+          mountType: '',
+          hostPath: '',
+          containerMountPath: ''
         }
         this.hostList = []
         this.configForm.appPackageId = this.appPackageId
@@ -731,6 +825,9 @@ export default {
         console.log('Network plane selected:', this.configForm.selectedNetworkPlane)
       }
 
+      this.addResourceRequests(params.parameters)
+      this.addHostPathMountParameters(params.parameters)
+
       // 如果没有任何参数，则不传body
       if (Object.keys(params.parameters).length === 0) {
         appo.instantiateApp(instanceId).then(response => {
@@ -786,6 +883,9 @@ export default {
           console.log('Batch deploy - Network plane selected:', this.configForm.selectedNetworkPlane)
         }
 
+        this.addResourceRequests(paramObj.parameters)
+        this.addHostPathMountParameters(paramObj.parameters)
+
         obj.instantiationParameters.push(paramObj)
       })
       appo.batchInstantiateApp(obj).then(response => {
@@ -796,6 +896,106 @@ export default {
     },
     handleSelectionChange (selection) {
       this.selectData = selection
+    },
+
+    validateResourceRequest (rule, value, callback) {
+      const cpuRequest = this.configForm.cpuRequest
+      const memoryRequest = this.configForm.memoryRequest
+      const hasCpuRequest = cpuRequest !== undefined && cpuRequest !== null && String(cpuRequest).trim() !== ''
+      const hasMemoryRequest = memoryRequest !== undefined && memoryRequest !== null && String(memoryRequest).trim() !== ''
+
+      if (!hasCpuRequest && !hasMemoryRequest) {
+        callback()
+        return
+      }
+      if (hasCpuRequest !== hasMemoryRequest) {
+        callback(new Error(this.$t('app.distriList.resourceRequestPairRequired')))
+        return
+      }
+      const cpuMax = 100
+      const memoryMaxMi = 128 * 1024
+      const cpuValue = Number(String(cpuRequest).trim())
+      if (hasCpuRequest && (!/^\d+(\.\d+)?$/.test(String(cpuRequest).trim()) || cpuValue <= 0)) {
+        callback(new Error(this.$t('app.distriList.cpuRequestInvalid')))
+        return
+      }
+      if (hasCpuRequest && cpuValue > cpuMax) {
+        callback(new Error(this.$t('app.distriList.cpuRequestMaxExceeded')))
+        return
+      }
+      if (hasMemoryRequest && !/^[1-9]\d*$/.test(String(memoryRequest).trim())) {
+        callback(new Error(this.$t('app.distriList.memoryRequestInvalid')))
+        return
+      }
+      if (hasMemoryRequest) {
+        const memMi = parseInt(String(memoryRequest).trim(), 10)
+        if (memMi > memoryMaxMi) {
+          callback(new Error(this.$t('app.distriList.memoryRequestMaxExceeded')))
+          return
+        }
+      }
+      callback()
+    },
+
+    validateHostPathMount (rule, value, callback) {
+      if (this.configForm.mountType !== 'hostPath') {
+        callback()
+        return
+      }
+      const hp = this.configForm.hostPath !== undefined && this.configForm.hostPath !== null
+        ? String(this.configForm.hostPath).trim() : ''
+      const cp = this.configForm.containerMountPath !== undefined && this.configForm.containerMountPath !== null
+        ? String(this.configForm.containerMountPath).trim() : ''
+      if (!hp || !cp) {
+        callback(new Error(this.$t('app.distriList.hostPathMountBothRequired')))
+        return
+      }
+      if (!hp.startsWith('/') || !cp.startsWith('/')) {
+        callback(new Error(this.$t('app.distriList.hostPathMountAbsolute')))
+        return
+      }
+      callback()
+    },
+
+    sanitizeVolumeNamePrefix (appName) {
+      if (!appName || !String(appName).trim()) {
+        return 'app'
+      }
+      const s = String(appName).trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
+      const trimmed = s.replace(/^-+|-+$/g, '')
+      return trimmed.length > 0 ? trimmed : 'app'
+    },
+
+    addHostPathMountParameters (parameters) {
+      if (this.configForm.mountType !== 'hostPath') {
+        return
+      }
+      const hp = this.configForm.hostPath ? String(this.configForm.hostPath).trim() : ''
+      const cp = this.configForm.containerMountPath ? String(this.configForm.containerMountPath).trim() : ''
+      if (!hp || !cp) {
+        return
+      }
+      const volumeName = `${this.sanitizeVolumeNamePrefix(this.configForm.appName)}-volume`
+      parameters.hostPathMountType = 'hostPath'
+      parameters.hostPath = hp
+      parameters.containerMountPath = cp
+      parameters.volumeName = volumeName
+    },
+
+    addResourceRequests (parameters) {
+      const cpuRequest = this.configForm.cpuRequest ? String(this.configForm.cpuRequest).trim() : ''
+      const memoryRequest = this.configForm.memoryRequest ? String(this.configForm.memoryRequest).trim() : ''
+
+      if (cpuRequest && memoryRequest) {
+        parameters.cpuRequest = cpuRequest
+        const mi = Number(memoryRequest)
+        if (Number.isFinite(mi) && mi > 0 && mi % 1024 === 0) {
+          parameters.memoryRequest = `${mi / 1024}Gi`
+        } else {
+          parameters.memoryRequest = `${memoryRequest}Mi`
+        }
+        console.log('Resource requests selected:', parameters.cpuRequest, parameters.memoryRequest)
+      }
     },
 
     /**

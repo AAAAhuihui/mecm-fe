@@ -41,12 +41,15 @@
         >
           <DnsPannel :showtype="type" />
         </el-tab-pane>
+        <!-- 隐藏分流规则 Tab：仅展示 DNS 规则（2026-05-16） -->
+        <!--
         <el-tab-pane
           :label="$t('app.ruleConfig.trafficRule')"
           name="traffic"
         >
           <TrafficPannel :showtype="type" />
         </el-tab-pane>
+        -->
       </el-tabs>
     </div>
   </div>
@@ -54,11 +57,11 @@
 
 <script>
 import DnsPannel from './Dns.vue'
-import TrafficPannel from './Traffic.vue'
+// import TrafficPannel from './Traffic.vue' // 隐藏分流规则：不再挂载（2026-05-16）
 export default {
   components: {
-    DnsPannel,
-    TrafficPannel
+    DnsPannel
+    // TrafficPannel // 隐藏分流规则（2026-05-16）
   },
   data () {
     return {
@@ -70,9 +73,11 @@ export default {
     addNew () {
       if (this.activeName === 'dns') {
         this.type = 1
-      } else if (this.activeName === 'traffic') {
-        this.type = 2
       }
+      // 分流规则 Tab 已隐藏，不再处理 traffic（2026-05-16）
+      // else if (this.activeName === 'traffic') {
+      //   this.type = 2
+      // }
     }
   }
 }

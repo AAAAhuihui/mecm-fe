@@ -63,11 +63,15 @@ export default {
   name: 'Map',
   props: {
     detail: {
-      required: true,
       type: Object,
-      detault: function () {
-        return null
+      default () {
+        return {}
       }
+    },
+    /** 为 true 时（概览「节点详情」布局）：右侧保持与概览相同的中国地图，不切 OpenLayers */
+    detailPanelMode: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
@@ -85,7 +89,9 @@ export default {
       showMainView: true,
       language: localStorage.getItem('language') || 'cn',
       getNodeTimeout: null,
-      nodeStatusList: []
+      nodeStatusList: [],
+      /** 详情页时放大的节点 IP，对应概览地图上的 markPoint */
+      highlightMechostIp: ''
     }
   },
   mounted () {
@@ -95,11 +101,32 @@ export default {
     detailMap.style.height = window.innerHeight
   },
   watch: {
-    detail () {
-      let arr = []
-      arr.push(this.detail)
-      this.showLayers(arr)
-      this.$emit('node', this.detail)
+    detail: {
+      handler (val) {
+        if (!val || !val.mechostIp) {
+          this.highlightMechostIp = ''
+          return
+        }
+        if (this.detailPanelMode) {
+          this.showMainView = true
+          this.btnShow = false
+          this.highlightMechostIp = val.mechostIp
+          // 详情由父组件 showDetail/clickNode 加载；此处仅刷新地图高亮，避免重复 emit 引发状态抖动
+          this.$nextTick(() => this.refreshChinaMapIfReady())
+        } else {
+          let arr = []
+          arr.push(val)
+          this.showLayers(arr)
+          this.$emit('node', val)
+        }
+      },
+      deep: true
+    },
+    detailPanelMode (v) {
+      if (!v) {
+        this.highlightMechostIp = ''
+        this.$nextTick(() => this.refreshChinaMapIfReady())
+      }
     },
     '$i18n.locale': function () {
       let language = localStorage.getItem('language')
@@ -112,6 +139,35 @@ export default {
     clearInterval(this.getNodeTimeout)
   },
   methods: {
+    refreshChinaMapIfReady () {
+      if (!this.chinaJson || !this.showMainView) {
+        return
+      }
+      let el = document.getElementById('mapChart')
+      if (!el) {
+        return
+      }
+      let chart = echarts.getInstanceByDom(el)
+      if (!chart) {
+        return
+      }
+      this.regAndSetOption(chart, this.chinaName, this.chinaJson, false)
+      chart.resize()
+    },
+    resizeMap () {
+      this.$nextTick(() => {
+        let el = document.getElementById('mapChart')
+        if (el) {
+          let c = echarts.getInstanceByDom(el)
+          if (c) {
+            c.resize()
+          }
+        }
+        if (this.map) {
+          this.map.updateSize()
+        }
+      })
+    },
     normalizeCoordinate (coordinate) {
       if (Array.isArray(coordinate) && coordinate.length >= 2) {
         let lon = parseFloat(coordinate[0])
@@ -180,10 +236,15 @@ export default {
         this.regAndSetOption(myChart, this.chinaName, mapJson, false)
         myChart.on('click', (param) => {
           if (param.componentType === 'markPoint') {
-            let arr = []
-            arr.push(param.data)
             this.$emit('node', param.data)
-            this.showLayers(arr)
+            if (!this.detailPanelMode) {
+              let arr = []
+              arr.push(param.data)
+              this.showLayers(arr)
+            } else {
+              this.highlightMechostIp = param.data.mechostIp || ''
+              this.$nextTick(() => this.refreshChinaMapIfReady())
+            }
           } else {
             if (this.continue) {
               this.mapAreaClick(param, myChart)
@@ -348,9 +409,13 @@ export default {
             data: this.initMapData(mapJson),
             markPoint: {
               symbol: 'image://./outer.png',
-              symbolSize: [26, 26],
               hoverAnimation: true,
-              data: data
+              data: data.map(item => {
+                const pt = Object.assign({}, item)
+                const big = this.highlightMechostIp && item.mechostIp === this.highlightMechostIp
+                pt.symbolSize = big ? [38, 38] : [26, 26]
+                return pt
+              })
             }
           }
         ]
@@ -366,6 +431,7 @@ export default {
       return mapData
     },
     returnOverviewModel () {
+      this.highlightMechostIp = ''
       let myChart = echarts.init(document.getElementById('mapChart'))
       this.regAndSetOption(myChart, this.chinaName, this.chinaJson, false)
       this.showMainView = true

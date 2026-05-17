@@ -171,7 +171,7 @@
           </div>
           <div
             class="edge-souces"
-            v-if="showType === 'details'"
+            v-if="showType === 'details' && nodeBasicInfo"
           >
             <el-row
               :gutter="10"
@@ -270,6 +270,8 @@
           class="mapPanel"
         >
           <Map
+            ref="overviewMap"
+            :detail-panel-mode="showType === 'details'"
             @node="clickNode"
             @area="clickMap"
             :detail="detail"
@@ -345,6 +347,14 @@ export default {
         this.city = '全国'
       }
       this.language = val
+    },
+    showType () {
+      this.$nextTick(() => {
+        const map = this.$refs.overviewMap
+        if (map && typeof map.resizeMap === 'function') {
+          map.resizeMap()
+        }
+      })
     }
   },
   methods: {
@@ -392,7 +402,10 @@ export default {
         let bottom = document.getElementsByClassName('bottom')
         bottom[0].style.height = '71%'
         bottom[0].style.marginTop = '0px'
-        this.showType = 'overview'
+        // 地图「返回概览」会传 city=''；省份下钻传具体省名。详情态下勿因其它 area 事件误退回列表
+        if (city === '' || this.showType !== 'details') {
+          this.showType = 'overview'
+        }
       }
       if (this.$i18n.locale === 'en') {
         this.city = city
@@ -421,6 +434,8 @@ export default {
         }
     },
     showDetail (row) {
+      // 与点击地图节点一致：进入详情布局并加载节点信息/资源/能力（仍为同一页，非新路由）
+      this.clickNode(row)
       this.detail = row
     },
     appChange (val) {

@@ -226,7 +226,7 @@
 <script>
 import Search from '../../components/common/Search.vue'
 import Pagination from '../../components/common/Pagination.vue'
-import { appo } from '../../tools/request.js'
+import { appo, inventory, signaling } from '../../tools/request.js'
 import InstanceUsage from '../overview/InstanceUsage.vue'
 export default {
   name: 'AinsList',
@@ -365,21 +365,158 @@ export default {
         this.kpiInfo = {}
       }
     },
-    beforeDelete (rows, type) {
-      if (type === 1) {
-        if (rows.length > 0) {
-          this.$confirm(this.$t('app.instanceList.beforeDelete'), this.$t('common.warning'), {
-            confirmButtonText: this.$t('common.confirm'),
-            cancelButtonText: this.$t('common.cancel'),
-            closeOnClickModal: false,
-            type: 'warning'
-          }).then(() => {
-            this.multipleDelete(rows)
-          })
-        } else {
-          this.$message.warning(this.$t('tip.onePackageAtLeast'))
+    async hasInventoryDnsTrafficRules (appInstanceId) {
+      try {
+        const res = await inventory.getConfigRules(appInstanceId)
+        const data = res && res.data ? res.data : null
+        const dnsRules = (data && Array.isArray(data.appDNSRule)) ? data.appDNSRule : []
+        const trafficRules = (data && Array.isArray(data.appTrafficRule)) ? data.appTrafficRule : []
+        return dnsRules.length > 0 || trafficRules.length > 0
+      } catch (error) {
+        if (error && error.response && error.response.status === 404) {
+          return false
         }
+        this.loginStatus(error)
+        this.$message.error(this.$t('app.instanceList.checkRulesFailed'))
+        return true
+      }
+    },
+    /**
+     * 规则下发（信令策略）是否仍存在：优先走 progress 接口，查不到再翻页列表兜底
+     */
+    async hasSignalingPolicyBlocking (appInstanceId) {
+      if (!appInstanceId) {
+        return false
+      }
+      try {
+        const res = await signaling.getSignalingProgress(appInstanceId)
+        const body = res && res.data ? res.data : {}
+        if (body.code === 200 && Array.isArray(body.data)) {
+          const row = body.data.find(r => r && r.appInstanceId === appInstanceId)
+          if (row) {
+            const st = row.status ? String(row.status).toUpperCase() : ''
+            if (st === 'NONE' || row.signalingId == null) {
+              return false
+            }
+            return true
+          }
+        }
+      } catch (e) {
+        console.warn('signaling progress:', e)
+      }
+      return this.hasSignalingInPagedList(appInstanceId)
+    },
+    async hasSignalingInPagedList (appInstanceId) {
+      try {
+        let page = 1
+        const size = 100
+        let total = Infinity
+        while (page <= 50) {
+          const res = await signaling.getAllSignaling({ page, size })
+          let data = []
+          if (res && res.data) {
+            if (Array.isArray(res.data.data)) {
+              data = res.data.data
+              total = res.data.total != null ? Number(res.data.total) : data.length
+            } else if (Array.isArray(res.data)) {
+              data = res.data
+              total = data.length
+            }
+          }
+          const hit = data.some(r =>
+            r && r.id && (r.appInstanceId === appInstanceId || r.appId === appInstanceId))
+          if (hit) {
+            return true
+          }
+          if (data.length < size || page * size >= total) {
+            break
+          }
+          page++
+        }
+        return false
+      } catch (error) {
+        this.loginStatus(error)
+        this.$message.error(this.$t('app.instanceList.checkRulesFailed'))
+        return true
+      }
+    },
+    /**
+     * @returns {Promise<'inventory'|'signaling'|null>}
+     */
+    async analyzeDeleteBlock (appInstanceId) {
+      if (await this.hasInventoryDnsTrafficRules(appInstanceId)) {
+        return 'inventory'
+      }
+      if (await this.hasSignalingPolicyBlocking(appInstanceId)) {
+        return 'signaling'
+      }
+      return null
+    },
+    async showSignalingBlockedDialog (row) {
+      this.$confirm(this.$t('app.instanceList.signalingRulesExistBeforeDelete'), this.$t('common.warning'), {
+        confirmButtonText: this.$t('app.instanceList.goToSignaling'),
+        cancelButtonText: this.$t('common.cancel'),
+        closeOnClickModal: false,
+        type: 'warning'
+      }).then(() => {
+        this.$router.push('/mecm/signaling/manager')
+      })
+    },
+    async showRulesExistDialogAndJump (row) {
+      this.$confirm(this.$t('app.instanceList.rulesExistBeforeDelete'), this.$t('common.warning'), {
+        confirmButtonText: this.$t('app.instanceList.goToRuleConfig'),
+        cancelButtonText: this.$t('common.cancel'),
+        closeOnClickModal: false,
+        type: 'warning'
+      }).then(() => {
+        sessionStorage.setItem('instanceId', row.appInstanceId)
+        sessionStorage.setItem('instanceName', row.appName)
+        this.$router.push('/mecm/app/ruleconfig')
+      })
+    },
+    async beforeDelete (rows, type) {
+      if (type === 1) {
+        if (!rows || rows.length <= 0) {
+          this.$message.warning(this.$t('tip.onePackageAtLeast'))
+          return
+        }
+
+        const blocks = await Promise.all(rows.map(async (r) => ({
+          row: r,
+          reason: await this.analyzeDeleteBlock(r.appInstanceId)
+        })))
+        const invBlocked = blocks.filter(i => i.reason === 'inventory').map(i => i.row)
+        if (invBlocked.length > 0) {
+          const names = invBlocked.map(i => i.appName).filter(Boolean).join('，')
+          this.$alert(this.$t('app.instanceList.batchRulesExistBeforeDelete') + (names ? ('：' + names) : ''), this.$t('common.warning'))
+          return
+        }
+        const sigBlocked = blocks.filter(i => i.reason === 'signaling').map(i => i.row)
+        if (sigBlocked.length > 0) {
+          const names = sigBlocked.map(i => i.appName).filter(Boolean).join('，')
+          this.$alert(this.$t('app.instanceList.batchSignalingRulesExistBeforeDelete') + (names ? ('：' + names) : ''), this.$t('common.warning'))
+          return
+        }
+
+        this.$confirm(this.$t('app.instanceList.beforeDelete'), this.$t('common.warning'), {
+          confirmButtonText: this.$t('common.confirm'),
+          cancelButtonText: this.$t('common.cancel'),
+          closeOnClickModal: false,
+          type: 'warning'
+        }).then(() => {
+          this.multipleDelete(rows)
+        })
       } else {
+        const reason = await this.analyzeDeleteBlock(rows.appInstanceId)
+        if (reason === 'inventory') {
+          await this.showRulesExistDialogAndJump(rows)
+          return
+        }
+        if (reason === 'signaling') {
+          await this.showSignalingBlockedDialog(rows)
+          return
+        }
+
         this.$confirm(this.$t('app.instanceList.beforeDelete'), this.$t('common.warning'), {
           confirmButtonText: this.$t('common.confirm'),
           cancelButtonText: this.$t('common.cancel'),
