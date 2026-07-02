@@ -148,7 +148,10 @@
         </div>
         <div class="form-content">
           <!-- 第一行：UE类型 + UE IP -->
-          <div class="form-row">
+          <div
+            class="form-row"
+            v-if="!isQiantongCoreNetwork"
+          >
             <div class="select-item">
               <label>UE类型</label>
               <el-select
@@ -230,7 +233,10 @@
           </div>
 
           <!-- 第四行：SST + SD -->
-          <div class="form-row">
+          <div
+            class="form-row"
+            v-if="!isQiantongCoreNetwork"
+          >
             <div class="select-item">
               <label>SST</label>
               <el-input
@@ -252,7 +258,10 @@
           </div>
 
           <!-- 第五行：DNAI编码 -->
-          <div class="form-row">
+          <div
+            class="form-row"
+            v-if="!isQiantongCoreNetwork"
+          >
             <div class="select-item">
               <label>边缘节点DNAI编码</label>
               <el-input
@@ -265,7 +274,10 @@
           </div>
 
           <!-- 第六行：UPF -->
-          <div class="form-row">
+          <div
+            class="form-row"
+            v-if="!isQiantongCoreNetwork"
+          >
             <div class="select-item">
               <label>UPF</label>
               <el-input
@@ -287,7 +299,7 @@
             type="primary"
             :loading="loading"
 
-            :disabled="!form.ueType || (form.ueType === 'single' && !form.ueIp) || (form.ueType === 'all' && !form.networkSegment) || !form.dnn || !form.sst || !form.sd || !form.appId || !form.dnaiCode || !form.upf"
+            :disabled="isDeployDisabled"
 
             @click="handleDeploy"
             class="deploy-btn"
@@ -336,7 +348,10 @@
                 class="signaling-input"
               />
             </div>
-            <div class="select-item">
+            <div
+              class="select-item"
+              v-if="shouldShowDetailField(currentSignaling.targetDnai)"
+            >
               <label>DNAI编码</label>
               <el-input
                 v-model="currentSignaling.targetDnai"
@@ -368,7 +383,10 @@
                 class="signaling-input"
               />
             </div>
-            <div class="select-item">
+            <div
+              class="select-item"
+              v-if="shouldShowDetailField(currentSignaling.sst)"
+            >
               <label>SST</label>
               <el-input
                 v-model="currentSignaling.sst"
@@ -376,7 +394,10 @@
                 class="signaling-input"
               />
             </div>
-            <div class="select-item">
+            <div
+              class="select-item"
+              v-if="shouldShowDetailField(currentSignaling.sd)"
+            >
               <label>SD</label>
               <el-input
                 v-model="currentSignaling.sd"
@@ -389,7 +410,7 @@
           <!-- 第五行：网段（仅当UE类型为全部UE时显示） -->
           <div
             class="form-row"
-            v-if="currentSignaling.ueInfo && currentSignaling.ueInfo.includes('全部UE')"
+            v-if="currentSignaling.ueInfo && currentSignaling.ueInfo.includes('全部UE') && shouldShowDetailField(currentSignaling.networkSegment)"
           >
             <div class="select-item">
               <label>网段</label>
@@ -464,6 +485,7 @@
             APP信息
           </div>
           <div
+            v-if="!isQiantongCoreNetwork"
             class="header-item"
             style="flex: 3;"
           >
@@ -532,6 +554,7 @@
               <span v-if="row.appInstanceId">{{ row.appName ? row.appName : row.appInstanceId }} {{ row.appName ? `[${row.appInstanceId}]` : '' }}</span>
             </div>
             <div
+              v-if="!isQiantongCoreNetwork"
               class="item-content"
               style="flex: 3;"
             >
@@ -679,6 +702,16 @@ export default {
     isQiantongCoreNetwork () {
       return this.coreNetworkForm.coreNetworkType === 'qiantong'
     },
+    isDeployDisabled () {
+      if (this.isQiantongCoreNetwork) {
+        return !this.form.appId || !this.form.dnn
+      }
+      return !this.form.ueType ||
+        (this.form.ueType === 'single' && !this.form.ueIp) ||
+        (this.form.ueType === 'all' && !this.form.networkSegment) ||
+        !this.form.dnn || !this.form.sst || !this.form.sd ||
+        !this.form.appId || !this.form.dnaiCode || !this.form.upf
+    },
     currentCoreNetworkLabel () {
       const option = this.coreNetworkOptions.find(item => item.value === this.coreNetworkForm.coreNetworkType)
       return option ? option.label : '默认核心网'
@@ -746,6 +779,11 @@ export default {
       if (this.getIsQiantongCoreNetwork()) {
         this.form.ueType = 'all'
         this.form.ueIp = ''
+        this.form.networkSegment = ''
+        this.form.sst = ''
+        this.form.sd = ''
+        this.form.dnaiCode = ''
+        this.form.upf = ''
       }
     },
 
@@ -825,19 +863,26 @@ export default {
           return
         }
 
-        const params = {
-          appId: that.form.appId,
-          dnai: that.form.dnaiCode,
-          targetIp: targetIp,
-          coreNetworkType: that.coreNetworkForm.coreNetworkType,
-          ueType: that.getIsQiantongCoreNetwork() ? 'all' : that.form.ueType,
-          ueIp: that.form.ueIp || '',
-          networkSegment: that.form.networkSegment || '',
-          dnn: that.form.dnn,
-          sst: that.form.sst,
-          sd: that.form.sd,
-          upf: that.form.upf || ''
-        }
+        const params = that.getIsQiantongCoreNetwork()
+          ? {
+            appId: that.form.appId,
+            targetIp: targetIp,
+            coreNetworkType: that.coreNetworkForm.coreNetworkType,
+            dnn: that.form.dnn
+          }
+          : {
+            appId: that.form.appId,
+            dnai: that.form.dnaiCode,
+            targetIp: targetIp,
+            coreNetworkType: that.coreNetworkForm.coreNetworkType,
+            ueType: that.form.ueType,
+            ueIp: that.form.ueIp || '',
+            networkSegment: that.form.networkSegment || '',
+            dnn: that.form.dnn,
+            sst: that.form.sst,
+            sd: that.form.sd,
+            upf: that.form.upf || ''
+          }
         const res = await signaling.createPolicy(params)
 
         if (res.data && res.data.code === 200) {
@@ -978,10 +1023,18 @@ export default {
     },
 
     // 查看信令详情
+    shouldShowDetailField (value) {
+      if (this.currentSignaling.coreNetworkType !== 'qiantong') {
+        return true
+      }
+      return value !== null && value !== undefined && String(value).trim() !== ''
+    },
+
     handleView (row) {
       // 格式化信令数据
       const ueInfo = row.ueType ? (row.ueType === 'all' ? '全部UE' : (row.ueType === 'single' ? `单独UE: ${row.ueIp}` : '-')) : ''
       this.currentSignaling = {
+        coreNetworkType: row.coreNetworkType || this.coreNetworkForm.coreNetworkType,
         appInfo: row.appInstanceId ? `${row.appName ? row.appName : row.appInstanceId} ${row.appName ? `[${row.appInstanceId}]` : ''}` : '',
         targetIp: row.targetIp || '',
         targetDnai: row.targetDnai || '',
