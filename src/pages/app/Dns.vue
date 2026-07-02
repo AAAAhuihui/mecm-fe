@@ -337,7 +337,7 @@ export default {
       this.dnsRule = data
     },
     deleteDnsRule (index, row) {
-      this.$confirm(this.$t('tip.ifContinue'), this.$t('common.warning'), {
+      this.$confirm(this.$t('tip.deleteDnsRuleConfirm'), this.$t('common.warning'), {
         confirmButtonText: this.$t('common.confirm'),
         cancelButtonText: this.$t('common.cancel'),
         closeOnClickModal: false,

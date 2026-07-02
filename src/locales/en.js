@@ -416,6 +416,7 @@ const en = {
     regAppManSuc: 'You have created one app rule manager successfully.',
     modAppRuleSuc: 'You have modified one app rule manager successfully.',
     ifContinue: 'This operation will permanently delete the diversion rule, continue?',
+    deleteDnsRuleConfirm: 'This operation will permanently delete the DNS rule. Continue?',
     oneAtLeast: 'Please select one rule at least.',
     onePackageAtLeast: 'Please select one piece pf data at least!',
     loginStatusFailed: 'The login status has expired, please refresh the page and log in again.',
