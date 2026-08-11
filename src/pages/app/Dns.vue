@@ -293,6 +293,11 @@ export default {
             if (res.data) {
               this.getTaskStatus(res)
             }
+          }).catch(error => {
+            const status = error && error.response ? error.response.status : 0
+            if (this.index !== -1 && status >= 400 && status < 500) {
+              this.$message.error(this.$t('app.ruleConfig.editDnsRuleFail'))
+            }
           })
         }
       })

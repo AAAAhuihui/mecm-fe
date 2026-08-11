@@ -219,6 +219,7 @@ const cn = {
       mepError: '调用MEP接口错误，请检查后重试。',
       addRuleSuc: '添加规则成功',
       editRuleSuc: '编辑规则成功',
+      editDnsRuleFail: 'DNS规则修改失败',
       delRuleSuc: '删除规则成功'
     }
   },

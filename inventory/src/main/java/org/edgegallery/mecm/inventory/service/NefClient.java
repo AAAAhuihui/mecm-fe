@@ -1,0 +1,723 @@
+/*
+ *  Copyright 2020 Huawei Technologies Co., Ltd.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package org.edgegallery.mecm.inventory.service;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.edgegallery.mecm.inventory.config.NefConfig;
+import org.edgegallery.mecm.inventory.model.CoreNetworkConfig;
+import org.edgegallery.mecm.inventory.model.MecApplication;
+import org.edgegallery.mecm.inventory.model.SignalingDetails;
+import org.edgegallery.mecm.inventory.service.repository.CoreNetworkConfigRepository;
+import org.edgegallery.mecm.inventory.service.repository.MecApplicationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
+@Component
+public class NefClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(NefClient.class);
+
+    private static final String QIANTONG_CORE_NETWORK = "qiantong";
+
+    private static final String QIANTONG_TRAFFIC_INFLUENCE_PATH =
+            "/3gpp-traffic-influence/v1/af-mec-001/subscriptions";
+
+    private static final String QIANTONG_AUTHORIZATION = "Bearer selftest";
+
+    private static final String QIANTONG_SINGLE_NOTIFICATION_DESTINATION =
+            "https://af.example.com/nef/traffic-influence/notify";
+
+    private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
+
+    @Autowired
+    private NefConfig nefConfig;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private CoreNetworkConfigRepository coreNetworkConfigRepository;
+
+    @Autowired
+    private MecApplicationRepository mecApplicationRepository;
+
+    private volatile OkHttpClient httpClient;
+
+    public Map<String, Object> sendPfdRequest(SignalingDetails signalingDetails) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            Map<String, Object> requestPayload = buildPfdRequest(signalingDetails);
+
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String pfdEndpoint = buildEndpoint(nefConfig.getPfdEndpoint(), signalingDetails.getCoreNetworkType());
+            Request request = new Request.Builder()
+                    .url(pfdEndpoint)
+                    .addHeader("Content-Type", "application/json; charset=utf-8")
+                    .addHeader("Accept", "application/json")
+                    .post(requestBody)
+                    .build();
+
+            logger.info("Sending PFD request to NEF: {}", pfdEndpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201 || statusCode == 204);
+
+                String transactionId = extractTransactionId(response.header("Location"));
+                if (transactionId != null && !transactionId.isEmpty()) {
+                    result.put("transactionId", transactionId);
+                }
+
+                logger.info("PFD request completed, status: {}, response: {}", statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to send PFD request to NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
+    public Map<String, Object> deletePfdRequest(String transactionId) {
+        return deletePfdRequest(transactionId, null);
+    }
+
+    public Map<String, Object> deletePfdRequest(String transactionId, String coreNetworkType) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        if (transactionId == null || transactionId.isEmpty() || transactionId.startsWith("pfd-fail")) {
+            logger.info("Skipping invalid PFD transaction deletion, TransactionId: {}", transactionId);
+            result.put("statusCode", 204);
+            result.put("responseBody", "Skipped invalid PFD transaction");
+            result.put("success", true);
+            return result;
+        }
+
+        try {
+            String deleteUrl;
+            if (transactionId.startsWith("http")) {
+                deleteUrl = transactionId;
+            } else {
+                String baseEndpoint = buildEndpoint(nefConfig.getPfdEndpoint(), coreNetworkType);
+                if (!baseEndpoint.endsWith("/")) {
+                    baseEndpoint += "/";
+                }
+                deleteUrl = baseEndpoint + transactionId;
+            }
+
+            Request request = new Request.Builder()
+                    .url(deleteUrl)
+                    .addHeader("Accept", "application/json")
+                    .delete()
+                    .build();
+
+            logger.info("Sending PFD delete request to NEF: {}", deleteUrl);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = statusCode != 204 && response.body() != null ? response.body().string() : "";
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 204 || statusCode == 404);
+                result.put("pfdNotFound", statusCode == 404);
+
+                logger.info("PFD delete request completed, status: {}, response: {}", statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to delete PFD request from NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
+    public Map<String, Object> sendTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            // 构建3GPP流量影响请求
+            Map<String, Object> requestPayload = build3gppTrafficInfluenceRequest(signalingDetails);
+
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String trafficInfluenceEndpoint = buildTrafficInfluenceEndpoint(signalingDetails.getCoreNetworkType());
+            Request request = buildTrafficInfluencePostRequest(trafficInfluenceEndpoint,
+                    signalingDetails.getCoreNetworkType(), requestBody);
+
+            logger.info("Sending traffic influence request to NEF: {}", trafficInfluenceEndpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
+
+                // Get Location from response header (if 201 Created)
+                String transactionId = extractTransactionId(response.header("Location"));
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201);
+
+                if ((Boolean) result.get("success")) {
+                    if (transactionId != null && !transactionId.isEmpty()) {
+                        result.put("transactionId", transactionId);
+                    } else {
+                        // Generate a temporary ID if no Location header in response
+                        result.put("transactionId", "trans_" + System.currentTimeMillis());
+                    }
+                } else {
+                    // Generate an identifier for tracking failed responses
+                    result.put("transactionId", "nef-fail-" + signalingDetails.getAppInstanceId() +
+                            "-" + signalingDetails.getTargetDnai());
+                }
+
+                logger.info("NEF request completed, status: {}, response: {}", statusCode, responseBody);
+            }
+
+        } catch (Exception e) {
+            logger.error("Failed to send request to NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("transactionId", "nef-fail-" + signalingDetails.getAppInstanceId() +
+                    "-" + signalingDetails.getTargetDnai());
+        }
+
+        return result;
+    }
+
+    public Map<String, Object> cancelTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())
+                && "all".equals(signalingDetails.getUeType())) {
+            return closeQiantongTrafficInfluenceRequest(signalingDetails);
+        }
+        return deleteTrafficInfluenceRequest(signalingDetails.getTransactionId(),
+                signalingDetails.getCoreNetworkType());
+    }
+
+    private Map<String, Object> closeQiantongTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            Map<String, Object> requestPayload = buildQiantongCloseTrafficInfluenceRequest(signalingDetails);
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String endpoint = buildTrafficInfluenceEndpoint(signalingDetails.getCoreNetworkType());
+            Request request = buildTrafficInfluencePostRequest(endpoint,
+                    signalingDetails.getCoreNetworkType(), requestBody);
+
+            logger.info("Sending Qiantong close traffic influence request to NEF: {}", endpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201);
+                logger.info("Qiantong close request completed, status: {}, response: {}",
+                        statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to close Qiantong traffic influence: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
+    public Map<String, Object> deleteTrafficInfluenceRequest(String transactionId, String coreNetworkType) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        // Skip invalid subscriptions (records where NEF creation failed, no need to
+        // call delete interface)
+        if (transactionId == null || transactionId.isEmpty() || transactionId.startsWith("nef-")) {
+            logger.info("Skipping invalid NEF subscription deletion, TransactionId: {}", transactionId);
+            result.put("statusCode", 200);
+            result.put("responseBody", "Skipped invalid subscription");
+            result.put("success", true);
+            return result;
+        }
+
+        try {
+            // Build correct DELETE URL: base endpoint + transactionId (last number)
+            String deleteUrl;
+            if (transactionId.startsWith("http")) {
+                // If transactionId is already a full URL, use it directly
+                deleteUrl = transactionId;
+            } else {
+                // If transactionId is just a number, append it to the base endpoint
+                String baseEndpoint = buildTrafficInfluenceEndpoint(coreNetworkType);
+                // Ensure baseEndpoint ends with /
+                if (!baseEndpoint.endsWith("/")) {
+                    baseEndpoint += "/";
+                }
+                // Append transactionId
+                deleteUrl = baseEndpoint + transactionId;
+            }
+
+            Request.Builder requestBuilder = new Request.Builder()
+                    .url(deleteUrl)
+                    .addHeader("Accept", "application/json")
+                    .delete();
+            if (QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
+                requestBuilder.addHeader("Authorization", QIANTONG_AUTHORIZATION);
+            }
+            Request request = requestBuilder.build();
+
+            logger.info("Sending delete request to NEF: {}", deleteUrl);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = "";
+
+                // Handle 204 No Content response
+                if (statusCode != 204 && response.body() != null) {
+                    try {
+                        responseBody = response.body().string();
+                    } catch (Exception e) {
+                        logger.warn("Failed to read response body: {}", e.getMessage());
+                    }
+                }
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+
+                // Parse response body to extract title field for error handling
+                String title = null;
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    try {
+                        Map<String, Object> responseJson = objectMapper.readValue(responseBody, Map.class);
+                        title = (String) responseJson.get("title");
+                        result.put("title", title);
+                        logger.info("Extracted title from response: {}", title);
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse response body as JSON: {}", e.getMessage());
+                    }
+                }
+
+                // Determine success based on status code and title
+                boolean success = statusCode == 200 || statusCode == 204;
+
+                // Special handling for 404 with Data not found - treat as success
+                if (statusCode == 404 && "Data not found".equals(title)) {
+                    logger.info("NEF subscription not found (404 Data not found), treating as successful deletion");
+                    success = true;
+                    result.put("subscriptionNotFound", true);
+                }
+
+                // Special handling for 500 with CANCEL_FAILED - treat as failure with specific
+                // error
+                if (statusCode == 500 && "CANCEL_FAILED".equals(title)) {
+                    logger.error("NEF deletion failed (500 CANCEL_FAILED), core network cannot delete subscription");
+                    success = false;
+                    result.put("cancelFailed", true);
+                }
+
+                result.put("success", success);
+
+                logger.info("NEF delete request completed, status: {}, response: {}, success: {}", statusCode,
+                        responseBody,
+                        success);
+            }
+
+        } catch (IOException e) {
+            logger.error("Failed to delete request from NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500); // Set status code for error
+        }
+
+        return result;
+    }
+
+    private String buildEndpoint(String baseEndpoint, String coreNetworkType) {
+        if (coreNetworkType == null || coreNetworkType.isEmpty()) {
+            return baseEndpoint;
+        }
+
+        try {
+            CoreNetworkConfig config = coreNetworkConfigRepository.findById(coreNetworkType).orElse(null);
+            if (config == null || config.getNefIp() == null || config.getNefIp().isEmpty()
+                    || config.getNefPort() == null) {
+                return baseEndpoint;
+            }
+            URI uri = new URI(baseEndpoint);
+            return new URI(uri.getScheme(), uri.getUserInfo(), config.getNefIp(), config.getNefPort(),
+                    uri.getPath(), uri.getQuery(), uri.getFragment()).toString();
+        } catch (URISyntaxException e) {
+            logger.warn("Failed to build NEF endpoint from core network config, using configured endpoint: {}",
+                    e.getMessage());
+            return baseEndpoint;
+        }
+    }
+
+    private Map<String, Object> buildPfdRequest(SignalingDetails signalingDetails) {
+        Map<String, Object> requestParams = extractRequestParams(signalingDetails);
+
+        String appId = (String) requestParams.get("appId");
+        String targetIp = (String) requestParams.get("targetIp");
+
+        String externalAppId = appId != null ? appId : signalingDetails.getAppInstanceId();
+        String pfdId = signalingDetails.getId() != null ? "pfd_" + signalingDetails.getId() : "pfd_pending";
+        String appIp = targetIp != null && targetIp.contains("/")
+                ? targetIp.substring(0, targetIp.indexOf('/')) : targetIp;
+        String appIpSegment = appIp != null ? appIp + "/32" : "";
+        String flowDescription = String.format("permit out ip from %s to any", appIpSegment);
+
+        Map<String, Object> pfd = new HashMap<>();
+        pfd.put("pfdId", pfdId);
+        pfd.put("flowDescriptions", Arrays.asList(flowDescription));
+
+        Map<String, Object> pfds = new HashMap<>();
+        pfds.put(pfdId, pfd);
+
+        Map<String, Object> pfdData = new HashMap<>();
+        pfdData.put("externalAppId", externalAppId);
+        pfdData.put("pfds", pfds);
+
+        Map<String, Object> pfdDatas = new HashMap<>();
+        pfdDatas.put(externalAppId, pfdData);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("pfdDatas", pfdDatas);
+        return request;
+    }
+
+    private String extractTransactionId(String location) {
+        if (location == null || location.isEmpty()) {
+            return location;
+        }
+        String[] parts = location.split("/");
+        return parts.length > 0 ? parts[parts.length - 1] : location;
+    }
+
+    private Map<String, Object> build3gppTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        // Extract parameters from request payload
+        Map<String, Object> requestParams = extractRequestParams(signalingDetails);
+
+        String appId = (String) requestParams.get("appId");
+        String dnai = (String) requestParams.get("dnai");
+        String targetIp = (String) requestParams.get("targetIp");
+        String ueType = (String) requestParams.get("ueType");
+        String ueIp = (String) requestParams.get("ueIp");
+        String dnn = (String) requestParams.get("dnn");
+        String sst = (String) requestParams.get("sst");
+        String sd = (String) requestParams.get("sd");
+        String networkSegment = (String) requestParams.get("networkSegment");
+        String routeProfId = (String) requestParams.get("routeProfId");
+
+        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
+            String afTransId = (String) requestParams.get("afTransId");
+            if ("single".equals(ueType)) {
+                return buildQiantongSingleTrafficInfluenceRequest(appId, afTransId, dnn, ueIp, targetIp,
+                        dnai, sst, sd, signalingDetails.getId());
+            }
+            return buildQiantongTrafficInfluenceRequest(appId, afTransId, dnn, targetIp,
+                    signalingDetails.getId());
+        }
+
+        // Build SNSSAI
+        Map<String, Object> snssai = new HashMap<>();
+        try {
+            snssai.put("sst", Integer.parseInt(sst != null ? sst : "1")); // Default to 1
+        } catch (NumberFormatException e) {
+            snssai.put("sst", 1); // Default value
+        }
+        snssai.put("sd", sd != null ? sd : "010203"); // Default value
+
+        // Build traffic route
+        Map<String, Object> trafficRoute = new HashMap<>();
+        trafficRoute.put("dnai", dnai != null ? dnai : "mec"); // Default dnai to "mec"
+        trafficRoute.put("routeProfId", "MEC"); // Fixed routeProfId to "MEC"
+
+        // Build final request based on UE type
+        Map<String, Object> request = new HashMap<>();
+        request.put("dnn", dnn != null ? dnn : "internet"); // Default DNN to "internet"
+        request.put("snssai", snssai);
+        request.put("notificationDestination", "http://af:8000/test123"); // Fixed notification address
+        request.put("trafficRoutes", Arrays.asList(trafficRoute));
+
+        if ("single".equals(ueType)) {
+            // For single UE, use the format provided by user
+            request.put("afServiceId", nefConfig.getAfServiceId());
+            request.put("afAppId", appId);
+            request.put("ipv4Addr", ueIp != null ? ueIp : "");
+            request.put("suppFeat", "01"); // Fixed value
+        } else {
+            // For all UE, use the standard format provided by user
+            request.put("afServiceId", nefConfig.getAfServiceId());
+            // Build traffic rule
+            String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
+                    : "10.60.0.0/16";
+            String flowRule = String.format("permit out ip from %s to %s", targetIp, targetNetwork);
+
+            // Build traffic filter
+            Map<String, Object> trafficFilter = new HashMap<>();
+            trafficFilter.put("flowId", 1);
+            trafficFilter.put("flowDescriptions", Arrays.asList(flowRule));
+
+            request.put("anyUeInd", true); // For all UE
+            request.put("trafficFilters", Arrays.asList(trafficFilter));
+        }
+
+        return request;
+    }
+
+    private Map<String, Object> buildQiantongTrafficInfluenceRequest(String appId, String afTransId,
+            String dnn, String targetIp, Long signalingId) {
+        String appIp = targetIp != null ? targetIp.trim() : "";
+        String appIpSegment = appIp.contains("/") ? appIp : appIp + "/32";
+        String resolvedAfTransId = afTransId != null && !afTransId.isEmpty()
+                ? afTransId
+                : String.format("ti-inventory-%04d", signalingId != null ? signalingId : 0L);
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("afServiceId", nefConfig.getAfServiceId());
+        request.put("afAppId", appId);
+        request.put("afTransId", resolvedAfTransId);
+        request.put("dnn", dnn);
+        request.put("ulclUpfId", "upf-2");
+        request.put("psa1UpfId", "upf-1");
+        request.put("psa1UpfSdf", "permit out ip from any to assigned");
+        request.put("psa2UpfId", "upf-2");
+        request.put("psa2UpfSdf", String.format("permit out ip from %s to assigned", appIpSegment));
+        request.put("trafficRoutes", Arrays.asList(Collections.emptyMap()));
+        request.put("smfLoc", 0);
+        request.put("enbId", 0);
+        request.put("singlePsa1Enable", false);
+        return request;
+    }
+
+    private Map<String, Object> buildQiantongSingleTrafficInfluenceRequest(String appId, String afTransId,
+            String dnn, String ueIp, String targetIp, String dnai, String sst, String sd, Long signalingId) {
+        String appIp = targetIp != null ? targetIp.trim() : "";
+        String routeIp = appIp.contains("/") ? appIp.substring(0, appIp.indexOf('/')) : appIp;
+        String appIpSegment = routeIp + "/32";
+        String resolvedAfTransId = afTransId != null && !afTransId.isEmpty()
+                ? afTransId : String.format("ti-inventory-%04d", signalingId != null ? signalingId : 0L);
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("afServiceId", nefConfig.getAfServiceId());
+        request.put("afAppId", appId);
+        request.put("afTransId", resolvedAfTransId);
+        request.put("dnn", dnn);
+        request.put("ipv4Addr", ueIp);
+        request.put("dnaiChgType", "EARLY");
+        request.put("notificationDestination", QIANTONG_SINGLE_NOTIFICATION_DESTINATION);
+
+        Map<String, Object> trafficFilter = new LinkedHashMap<>();
+        trafficFilter.put("flowId", 1);
+        trafficFilter.put("flowDescriptions", Arrays.asList(
+                String.format("permit out ip from %s to assigned", appIpSegment)));
+        request.put("trafficFilters", Arrays.asList(trafficFilter));
+
+        Map<String, Object> routeInfo = new LinkedHashMap<>();
+        routeInfo.put("ipv4Addr", routeIp);
+        routeInfo.put("portNumber", resolveApplicationRoutePort(appId));
+        Map<String, Object> trafficRoute = new LinkedHashMap<>();
+        trafficRoute.put("dnai", dnai);
+        trafficRoute.put("routeInfo", routeInfo);
+        request.put("trafficRoutes", Arrays.asList(trafficRoute));
+
+        Map<String, Object> snssai = new LinkedHashMap<>();
+        try {
+            snssai.put("sst", Integer.parseInt(sst != null ? sst : "1"));
+        } catch (NumberFormatException e) {
+            snssai.put("sst", 1);
+        }
+        snssai.put("sd", sd);
+        request.put("snssai", snssai);
+        request.put("subscribedEvents", Arrays.asList("UP_PATH_CHANGE"));
+        request.put("appReloInd", true);
+        request.put("afAckInd", true);
+        return request;
+    }
+
+    private int resolveApplicationRoutePort(String appId) {
+        MecApplication application = mecApplicationRepository.findById(appId)
+                .orElseThrow(() -> new IllegalArgumentException("Application was not found: " + appId));
+        String appPorts = application.getAppPorts();
+        if (appPorts == null || appPorts.trim().isEmpty()) {
+            throw new IllegalArgumentException("Application app_ports is empty: " + appId);
+        }
+        try {
+            Map<String, Object> ports = objectMapper.readValue(appPorts, Map.class);
+            Integer servicePort = findFirstPort(ports.get("servicePorts"));
+            Integer containerPort = findFirstPort(ports.get("containerPorts"));
+            Integer routePort = servicePort != null ? servicePort : containerPort;
+            if (routePort == null || routePort < 1 || routePort > 65535) {
+                throw new IllegalArgumentException("No valid port in application app_ports: " + appId);
+            }
+            return routePort;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid application app_ports JSON: " + appId, e);
+        }
+    }
+
+    private Integer findFirstPort(Object ports) {
+        if (!(ports instanceof Iterable)) {
+            return null;
+        }
+        for (Object portItem : (Iterable<?>) ports) {
+            if (!(portItem instanceof Map)) {
+                continue;
+            }
+            Object port = ((Map<?, ?>) portItem).get("port");
+            if (port instanceof Number) {
+                return ((Number) port).intValue();
+            }
+            if (port instanceof String) {
+                try {
+                    return Integer.parseInt((String) port);
+                } catch (NumberFormatException e) {
+                    logger.warn("Ignoring invalid application port value: {}", port);
+                }
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildQiantongCloseTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        Map<String, Object> request = build3gppTrafficInfluenceRequest(signalingDetails);
+        request.remove("psa2UpfSdf");
+        return request;
+    }
+
+    private String buildTrafficInfluenceEndpoint(String coreNetworkType) {
+        String endpoint = buildEndpoint(nefConfig.getNefEndpoint(), coreNetworkType);
+        if (!QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
+            return endpoint;
+        }
+
+        try {
+            URI uri = new URI(endpoint);
+            return new URI("http", null, uri.getHost(), uri.getPort(),
+                    QIANTONG_TRAFFIC_INFLUENCE_PATH, null, null).toString();
+        } catch (URISyntaxException e) {
+            logger.warn("Failed to build Qiantong traffic influence endpoint, using configured endpoint: {}",
+                    e.getMessage());
+            return endpoint;
+        }
+    }
+
+    private Request buildTrafficInfluencePostRequest(String endpoint, String coreNetworkType,
+            RequestBody requestBody) {
+        Request.Builder builder = new Request.Builder()
+                .url(endpoint)
+                .post(requestBody);
+        if (QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
+            builder.addHeader("Content-Type", "application/json");
+            builder.addHeader("Authorization", QIANTONG_AUTHORIZATION);
+        } else {
+            builder.addHeader("Content-Type", "application/json; charset=utf-8");
+            builder.addHeader("Accept", "application/json");
+        }
+        return builder.build();
+    }
+
+    private Map<String, Object> extractRequestParams(SignalingDetails signalingDetails) {
+        Map<String, Object> params = new HashMap<>();
+
+        // Extract basic information from SignalingDetails
+        params.put("appId", signalingDetails.getAppInstanceId());
+        params.put("dnai", signalingDetails.getTargetDnai());
+        params.put("targetIp", signalingDetails.getTargetIp());
+
+        // Parse additional parameters from request payload
+        if (signalingDetails.getRequestPayload() != null) {
+            try {
+                Map<String, Object> payload = objectMapper.readValue(signalingDetails.getRequestPayload(), Map.class);
+                params.put("ueType", (String) payload.get("ueType"));
+                params.put("ueIp", (String) payload.get("ueIp"));
+                params.put("dnn", (String) payload.get("dnn"));
+                params.put("sst", (String) payload.get("sst"));
+                params.put("sd", (String) payload.get("sd"));
+                params.put("networkSegment", (String) payload.get("networkSegment"));
+                params.put("routeProfId", (String) payload.get("routeProfId"));
+                params.put("afTransId", (String) payload.get("afTransId"));
+            } catch (Exception e) {
+                logger.warn("Could not parse request payload for additional parameters: ", e);
+                // Set default values
+                params.put("ueType", "all");
+                params.put("ueIp", "");
+                params.put("dnn", "default-dnn");
+                params.put("sst", "1");
+                params.put("sd", "010203");
+                params.put("routeProfId", "mec");
+            }
+        } else {
+            // If no request payload, use default values
+            params.put("ueType", "all");
+            params.put("ueIp", "");
+            params.put("dnn", "default-dnn");
+            params.put("sst", "1");
+            params.put("sd", "010203");
+            params.put("routeProfId", "mec");
+        }
+
+        return params;
+    }
+
+    private OkHttpClient getHttpClient() {
+        if (httpClient == null) {
+            synchronized (this) {
+                if (httpClient == null) {
+                    httpClient = new OkHttpClient.Builder()
+                            .connectTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .readTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .writeTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .protocols(Collections.singletonList(Protocol.H2_PRIOR_KNOWLEDGE))
+                            .build();
+                }
+            }
+        }
+        return httpClient;
+    }
+}

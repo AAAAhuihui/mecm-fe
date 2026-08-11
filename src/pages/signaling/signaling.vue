@@ -148,10 +148,7 @@
         </div>
         <div class="form-content">
           <!-- 第一行：UE类型 + UE IP -->
-          <div
-            class="form-row"
-            v-if="!isQiantongCoreNetwork"
-          >
+          <div class="form-row">
             <div class="select-item">
               <label>UE类型</label>
               <el-select
@@ -159,12 +156,10 @@
                 placeholder="请选择UE类型"
                 clearable
                 class="signaling-select"
-                :disabled="isQiantongCoreNetwork"
               >
                 <el-option
                   label="单独UE"
                   value="single"
-                  :disabled="isQiantongCoreNetwork"
                 />
                 <el-option
                   label="全部UE"
@@ -186,7 +181,7 @@
             </div>
             <div
               class="select-item"
-              v-if="form.ueType === 'all'"
+              v-if="form.ueType === 'all' && !isQiantongCoreNetwork"
             >
               <label>网段输入</label>
               <el-input
@@ -235,7 +230,7 @@
           <!-- 第四行：SST + SD -->
           <div
             class="form-row"
-            v-if="!isQiantongCoreNetwork"
+            v-if="!isQiantongCoreNetwork || form.ueType === 'single'"
           >
             <div class="select-item">
               <label>SST</label>
@@ -260,7 +255,7 @@
           <!-- 第五行：DNAI编码 -->
           <div
             class="form-row"
-            v-if="!isQiantongCoreNetwork"
+            v-if="!isQiantongCoreNetwork || form.ueType === 'single'"
           >
             <div class="select-item">
               <label>边缘节点DNAI编码</label>
@@ -276,7 +271,7 @@
           <!-- 第六行：UPF -->
           <div
             class="form-row"
-            v-if="!isQiantongCoreNetwork"
+            v-if="!isQiantongCoreNetwork || form.ueType === 'single'"
           >
             <div class="select-item">
               <label>UPF</label>
@@ -703,7 +698,7 @@ export default {
       return this.coreNetworkForm.coreNetworkType === 'qiantong'
     },
     isDeployDisabled () {
-      if (this.isQiantongCoreNetwork) {
+      if (this.isQiantongCoreNetwork && this.form.ueType === 'all') {
         return !this.form.appId || !this.form.dnn
       }
       return !this.form.ueType ||
@@ -776,14 +771,8 @@ export default {
     },
 
     applyCoreNetworkFormRules () {
-      if (this.getIsQiantongCoreNetwork()) {
-        this.form.ueType = 'all'
-        this.form.ueIp = ''
-        this.form.networkSegment = ''
-        this.form.sst = ''
-        this.form.sd = ''
-        this.form.dnaiCode = ''
-        this.form.upf = ''
+      if (this.form.ueType !== 'single' && this.form.ueType !== 'all') {
+        this.form.ueType = ''
       }
     },
 
@@ -863,7 +852,7 @@ export default {
           return
         }
 
-        const params = that.getIsQiantongCoreNetwork()
+        const params = that.getIsQiantongCoreNetwork() && that.form.ueType === 'all'
           ? {
             appId: that.form.appId,
             targetIp: targetIp,
@@ -910,7 +899,7 @@ export default {
     // 重置表单
     resetForm () {
       this.form = {
-        ueType: this.getIsQiantongCoreNetwork() ? 'all' : '',
+        ueType: '',
         ueIp: '',
         networkSegment: '',
         dnn: '',

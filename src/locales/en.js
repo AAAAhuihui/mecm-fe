@@ -220,6 +220,7 @@ const en = {
       mepError: 'MEP error, please try again later.',
       addRuleSuc: 'You have added rule successfully',
       editRuleSuc: 'You have modified the rule successfully',
+      editDnsRuleFail: 'Failed to modify DNS rule',
       delRuleSuc: 'You have deleted the rule successfully'
     }
   },
